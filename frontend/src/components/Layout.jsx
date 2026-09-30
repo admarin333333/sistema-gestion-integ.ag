@@ -7,13 +7,16 @@ import ClienteForm from "../pages/ClienteForm.jsx";
 import ClienteFicha from "../pages/ClienteFicha.jsx";
 import Facturas from "../pages/Facturas.jsx";
 import FacturaForm from "../pages/FacturaForm.jsx";
+import Recibos from "../pages/Recibos.jsx";
+import ReciboForm from "../pages/ReciboForm.jsx";
+import EstadoCuenta from "../pages/EstadoCuenta.jsx";
 
 const MENU = [
   { label: "Dashboard", fase: 1, ir: "dashboard" },
   { label: "Clientes", fase: 2, ir: "clientes" },
   { label: "Facturas", fase: 3, ir: "facturas" },
-  { label: "Recibos", fase: 3 },
-  { label: "Estado de cuenta", fase: 3 },
+  { label: "Recibos", fase: 3, ir: "recibos" },
+  { label: "Estado de cuenta", fase: 3, ir: "cuenta" },
   { label: "Informes", fase: 5 },
 ];
 
@@ -27,6 +30,10 @@ const GRUPOS = {
   facturas: "facturas",
   "factura-alta": "facturas",
   "factura-editar": "facturas",
+  recibos: "recibos",
+  "recibo-alta": "recibos",
+  "recibo-editar": "recibos",
+  cuenta: "cuenta",
 };
 
 const fechaHoy = () =>
@@ -107,6 +114,25 @@ export default function Layout() {
             onEditar={() => ir("cliente-editar", pagina.id)}
           />
         );
+      case "recibos":
+        return <Recibos ir={ir} aviso={pagina.aviso} />;
+      case "recibo-alta":
+        return (
+          <ReciboForm
+            onGuardado={(r, aviso) => ir("recibos", null, aviso)}
+            onCancelar={() => ir("recibos")}
+          />
+        );
+      case "recibo-editar":
+        return (
+          <ReciboForm
+            reciboId={pagina.id}
+            onGuardado={(r, aviso) => ir("recibos", null, aviso)}
+            onCancelar={() => ir("recibos")}
+          />
+        );
+      case "cuenta":
+        return <EstadoCuenta ir={ir} />;
       default:
         return <Dashboard ir={ir} />;
     }

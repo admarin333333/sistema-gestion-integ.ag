@@ -1037,3 +1037,50 @@ main {
     color: #444 !important;
   }
 }
+
+/* ============================================================
+   Cuenta Corriente / Estado de Cuenta
+   ============================================================ */
+
+.cc-cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.cc-cabecera h3 {
+  margin: 0 0 0.3rem;
+}
+
+.cc-datos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.cc-datos b {
+  color: var(--text);
+}
+
+@media print {
+  .buscador {
+    display: none !important;
+  }
+  .solo-impresion {
+    display: block;
+    border-bottom: 2px solid #000;
+    padding-bottom: 0.4rem;
+    margin-bottom: 1.2rem;
+  }
+  .solo-impresion b {
+    display: block;
+    font-size: 1.25rem;
+    letter-spacing: 0.06em;
+    color: #000;
+  }
+}

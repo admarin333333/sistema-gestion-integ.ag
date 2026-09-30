@@ -185,3 +185,52 @@ def desaplicar(db: Session, aplicacion_id: int) -> None:
     db.delete(aplicacion)
     db.commit()
     factura_service.recalcular_estado(db, factura_id)
+
+
+# --------------------------------------------------------------------- Excel
+
+def informe_excel(recibos: list[Recibo], total_recibido: float) -> bytes:
+    libro = Workbook()
+    hoja = libro.active
+    hoja.title = "Recibos"
+
+    columnas = [
+        ("Fecha", 12),
+        ("Número", 12),
+        ("Cliente", 30),
+        ("Forma de pago", 20),
+        ("Importe", 14),
+    ]
+    hoja.append([settings.nombre_estudio])
+    hoja.cell(row=1, column=1).font = Font(bold=True, size=13)
+    hoja.append([])
+
+    hoja.append([nombre for nombre, _ in columnas])
+    for celda in hoja[3]:
+        celda.font = Font(bold=True)
+
+    for r in recibos:
+        hoja.append(
+            [
+                r.fecha.isoformat(),
+                r.numero,
+                r.cliente_nombre,
+                ETIQUETAS_FORMA.get(r.forma_pago, r.forma_pago),
+                float(r.importe),
+            ]
+        )
+
+    hoja.append([""] * len(columnas))
+    hoja.append(["", "", "", "TOTAL", total_recibido])
+    ultima = hoja.max_row
+    hoja.cell(row=ultima, column=4).font = Font(bold=True)
+    celda_total = hoja.cell(row=ultima, column=5)
+    celda_total.font = Font(bold=True)
+    celda_total.number_format = "#,##0.00"
+
+    for (nombre, ancho), letra in zip(columnas, "ABCDE"):
+        hoja.column_dimensions[letra].width = ancho
+
+    salida = BytesIO()
+    libro.save(salida)
+    return salida.getvalue()

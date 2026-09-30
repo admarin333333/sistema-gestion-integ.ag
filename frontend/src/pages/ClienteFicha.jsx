@@ -8,6 +8,11 @@ import {
   eliminarSugerencia,
   obtenerCliente,
 } from "../api/clientes.js";
+import {
+  obtenerCuentaCorriente,
+  exportarCuentaCorriente,
+} from "../api/cuentaCorriente.js";
+import { NOMBRE_ESTUDIO, fecha, pesos } from "../formato.js";
 
 const hoy = () => {
   const d = new Date();
@@ -16,14 +21,12 @@ const hoy = () => {
   ).padStart(2, "0")}`;
 };
 
-const fecha = (f) => (f ? f.split("-").reverse().join("/") : "—");
-
 const PESTANAS = [
   { id: "datos", label: "Datos" },
   { id: "servicios", label: "Servicios" },
   { id: "facturas", label: "Facturas", fase: 3 },
   { id: "recibos", label: "Recibos", fase: 3 },
-  { id: "cuenta", label: "Cuenta corriente", fase: 3 },
+  { id: "cuenta", label: "Cuenta corriente" },
   { id: "observaciones", label: "Observaciones" },
   { id: "sugerencias", label: "Sugerencias" },
   { id: "informes", label: "Informes", fase: 5 },
@@ -39,6 +42,12 @@ export default function ClienteFicha({ clienteId, esAdmin, onVolver, onEditar })
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState("");
 
+  // cuenta corriente
+  const [cc, setCc] = useState(null);
+  const [ccCargando, setCcCargando] = useState(false);
+  const [ccError, setCcError] = useState("");
+  const [filtrosCC, setFiltrosCC] = useState({ desde: "", hasta: "" });
+
   const recargar = async () => {
     try {
       setCliente(await obtenerCliente(clienteId));
@@ -47,9 +56,28 @@ export default function ClienteFicha({ clienteId, esAdmin, onVolver, onEditar })
     }
   };
 
+  const cargarCuentaCorriente = async () => {
+    setCcCargando(true);
+    setCcError("");
+    try {
+      const data = await obtenerCuentaCorriente(clienteId, filtrosCC);
+      setCc(data);
+    } catch (e) {
+      setCcError(e.message);
+    } finally {
+      setCcCargando(false);
+    }
+  };
+
   useEffect(() => {
     recargar();
   }, [clienteId]);
+
+  useEffect(() => {
+    if (pestana === "cuenta") {
+      cargarCuentaCorriente();
+    }
+  }, [pestana, filtrosCC]);
 
   if (error) return <p className="error">{error}</p>;
   if (!cliente) return <p className="nota">Cargando ficha…</p>;
@@ -119,6 +147,14 @@ export default function ClienteFicha({ clienteId, esAdmin, onVolver, onEditar })
       onVolver();
     } catch (err) {
       setError(err.message);
+    }
+  };
+
+  const exportarExcelCC = async () => {
+    try {
+      await exportarCuentaCorriente(clienteId, filtrosCC);
+    } catch (e) {
+      setError(e.message);
     }
   };
 
@@ -244,6 +280,19 @@ export default function ClienteFicha({ clienteId, esAdmin, onVolver, onEditar })
         </div>
       )}
 
+      {pestana === "cuenta" && (
+        <CuentaCorrienteTab
+          cliente={cliente}
+          cc={cc}
+          cargando={ccCargando}
+          error={ccError}
+          filtros={filtrosCC}
+          onFiltrosChange={setFiltrosCC}
+          onRecargar={cargarCuentaCorriente}
+          onExportar={exportarExcelCC}
+        />
+      )}
+
       {pestana === "observaciones" && (
         <Observaciones cliente={cliente} onGuardar={guardarObservaciones} guardando={guardando} />
       )}
@@ -325,6 +374,108 @@ export default function ClienteFicha({ clienteId, esAdmin, onVolver, onEditar })
         </div>
       ))}
     </section>
+  );
+}
+
+function CuentaCorrienteTab({
+  cliente,
+  cc,
+  cargando,
+  error,
+  filtros,
+  onFiltrosChange,
+  onRecargar,
+  onExportar,
+}) {
+  const cambiarFiltro = (k) => (e) =>
+    onFiltrosChange({ ...filtros, [k]: e.target.value });
+
+  const limpiarFiltros = () => {
+    onFiltrosChange({ desde: "", hasta: "" });
+  };
+
+  if (cargando) return <p className="nota">Cargando estado de cuenta…</p>;
+  if (error) return <p className="error">{error}</p>;
+  if (!cc) return <p className="nota">Sin datos</p>;
+
+  const tel = [cliente.cod_area, cliente.telefono].filter(Boolean).join(" ");
+
+  return (
+    <div className="panel">
+      {/* Cabecera del cliente */}
+      <div className="cc-cabecera">
+        <div>
+          <h3>{cliente.nombre_completo}</h3>
+          <p className="nota">
+            {cliente.tipo_persona === "juridica" ? "Persona jurídica" : "Persona física"} ·
+            CUIT: {cliente.cuit || "—"} · DNI: {cliente.dni || "—"}
+          </p>
+        </div>
+        <div className="cc-datos">
+          <div><b>Condición IVA:</b> {cliente.tipo_actividad.replace(/_/g, " ").split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")}</div>
+          <div><b>Email:</b> {cliente.email || "—"}</div>
+          <div><b>Teléfono:</b> {tel || "—"}</div>
+        </div>
+      </div>
+
+      {/* Filtros */}
+      <form className="buscador" onSubmit={(e) => { e.preventDefault(); onRecargar(); }}>
+        <label className="campo">
+          <span>Desde</span>
+          <input type="date" value={filtros.desde} onChange={cambiarFiltro("desde")} />
+        </label>
+        <label className="campo">
+          <span>Hasta</span>
+          <input type="date" value={filtros.hasta} onChange={cambiarFiltro("hasta")} />
+        </label>
+        <button className="btn btn-sm" type="submit">Filtrar</button>
+        <button className="btn btn-sm fantasma" type="button" onClick={limpiarFiltros}>Limpiar</button>
+        <button className="btn btn-sm" type="button" onClick={onExportar}>Descargar Excel</button>
+        <button className="btn btn-sm fantasma" type="button" onClick={() => window.print()}>Imprimir</button>
+      </form>
+
+      {/* Tabla movimientos */}
+      <div className="tabla-envoltura">
+        <table className="tabla">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Concepto</th>
+              <th className="derecha">DEBE</th>
+              <th className="derecha">HABER</th>
+              <th className="derecha">SALDO</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cc.movimientos.length === 0 ? (
+              <tr>
+                <td colSpan="5" className="vacio">No hay movimientos en el período seleccionado.</td>
+              </tr>
+            ) : (
+              cc.movimientos.map((m) => (
+                <tr key={`${m.fecha}-${m.concepto}`}>
+                  <td className="mono">{fecha(m.fecha)}</td>
+                  <td>{m.concepto}</td>
+                  <td className="mono derecha">{m.debe ? pesos(m.debe) : "—"}</td>
+                  <td className="mono derecha">{m.haber ? pesos(m.haber) : "—"}</td>
+                  <td className="mono derecha"><b>{pesos(m.saldo)}</b></td>
+                </tr>
+              ))
+            )}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colSpan="2"><b>TOTALES</b></td>
+              <td className="mono derecha"><b>{pesos(cc.total_debe)}</b></td>
+              <td className="mono derecha"><b>{pesos(cc.total_haber)}</b></td>
+              <td className="mono derecha"><b>{pesos(cc.saldo)}</b></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <p className="nota">Saldo final a la fecha: <b>{pesos(cc.saldo)}</b></p>
+    </div>
   );
 }
 

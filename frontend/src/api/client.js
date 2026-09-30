@@ -4,7 +4,7 @@ export const getToken = () => localStorage.getItem(TOKEN_KEY);
 export const setToken = (t) => localStorage.setItem(TOKEN_KEY, t);
 export const clearToken = () => localStorage.removeItem(TOKEN_KEY);
 
-/** Todas las llamadas a la API pasan por acá. */
+/** Todas las llamadas a la API pasan por acá (usa proxy de Vite: /api -> 127.0.0.1:8010). */
 export async function api(path, { method = "GET", body } = {}) {
   const headers = { "Content-Type": "application/json" };
   const token = getToken();

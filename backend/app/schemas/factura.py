@@ -118,6 +118,7 @@ class FacturaOut(BaseModel):
     numero: str
     concepto: str | None = None
     importe: float
+    aplicado: float = 0
     fecha_vencimiento: date | None = None
     condicion_venta: str
     estado: str

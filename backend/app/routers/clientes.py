@@ -1,4 +1,7 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, Query, status
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, require_role
@@ -11,6 +14,8 @@ from app.schemas.sugerencia import SugerenciaCrear, SugerenciaOut
 from app.services import cliente_service, cuenta_service, sugerencia_service
 
 router = APIRouter(prefix="/clientes", tags=["clientes"])
+
+_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 @router.get("", response_model=list[ClienteOut])
@@ -88,8 +93,39 @@ def crear_sugerencia(
 @router.get("/{cliente_id}/cuenta-corriente", response_model=CuentaCorrienteOut)
 def cuenta_corriente(
     cliente_id: int,
+    desde: str | None = Query(default=None),
+    hasta: str | None = Query(default=None),
     db: Session = Depends(get_db),
     user: Usuario = Depends(get_current_user),
 ):
-    """Historial DEBE · HABER · SALDO del cliente."""
-    return cuenta_service.movimientos(db, cliente_id)
+    """Historial DEBE · HABER · SALDO del cliente con filtro de fechas."""
+    try:
+        desde_dt = date.fromisoformat(desde) if desde else None
+        hasta_dt = date.fromisoformat(hasta) if hasta else None
+        return cuenta_service.movimientos(db, cliente_id, desde=desde_dt, hasta=hasta_dt)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+@router.get("/{cliente_id}/cuenta-corriente/export.xlsx")
+def exportar_cuenta_corriente(
+    cliente_id: int,
+    desde: date | None = Query(default=None),
+    hasta: date | None = Query(default=None),
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """Estado de cuenta en Excel con totales calculados por SQL."""
+    cliente = cliente_service.obtener(db, cliente_id)
+    cc = cuenta_service.movimientos(db, cliente_id, desde=desde, hasta=hasta)
+    contenido = cuenta_service.informe_excel(
+        cliente, cc.movimientos, cc.total_debe, cc.total_haber, cc.saldo, desde, hasta
+    )
+    nombre = f"estado_cuenta_{cliente_id}_{date.today().isoformat()}.xlsx"
+    return Response(
+        content=contenido,
+        media_type=_XLSX,
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+    )

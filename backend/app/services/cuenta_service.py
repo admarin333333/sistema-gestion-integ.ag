@@ -1,6 +1,12 @@
-from sqlalchemy import Integer, Numeric, String, func, literal, select, union_all
+from datetime import date
+from io import BytesIO
+
+from openpyxl import Workbook
+from openpyxl.styles import Font
+from sqlalchemy import Integer, Numeric, String, func, literal, select, union_all, literal_column
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.models.anticipo import Anticipo
 from app.models.factura import Factura
 from app.models.recibo import Recibo
@@ -70,7 +76,22 @@ def _movimientos(db: Session, cliente_id: int):
     ).subquery("mov")
 
 
-def movimientos(db: Session, cliente_id: int) -> CuentaCorrienteOut:
+def _condiciones_fecha(m, desde, hasta) -> list:
+    """Condiciones de fecha usando la columna del subquery (m.c.fecha)."""
+    condiciones = []
+    if desde:
+        condiciones.append(m.c.fecha >= desde)
+    if hasta:
+        condiciones.append(m.c.fecha <= hasta)
+    return condiciones
+
+
+def movimientos(
+    db: Session,
+    cliente_id: int,
+    desde=None,
+    hasta=None,
+) -> CuentaCorrienteOut:
     """Historial con saldo corrido y totales — todo calculado con SQL.
 
     Imputar un anticipo NO agrega un movimiento nuevo: la plata ya entró
@@ -78,6 +99,12 @@ def movimientos(db: Session, cliente_id: int) -> CuentaCorrienteOut:
     """
     cliente = cliente_service.obtener(db, cliente_id)
     m = _movimientos(db, cliente_id)
+
+    # Aplicar filtros de fecha sobre la subquery
+    condiciones_fecha = _condiciones_fecha(m, desde, hasta)
+    if condiciones_fecha:
+        # m es Subquery -> usar select(m).where(...) para filtrar
+        m = select(m).where(*condiciones_fecha).subquery("mov_filtrado")
 
     consulta = select(
         m.c.fecha,
@@ -129,3 +156,83 @@ def movimientos(db: Session, cliente_id: int) -> CuentaCorrienteOut:
         total_haber=haber,
         saldo=debe - haber,
     )
+
+
+# --------------------------------------------------------------------- Excel
+
+def informe_excel(
+    cliente,
+    movimientos: list[MovimientoOut],
+    total_debe: float,
+    total_haber: float,
+    saldo: float,
+    desde=None,
+    hasta=None,
+) -> bytes:
+    libro = Workbook()
+    hoja = libro.active
+    hoja.title = "Estado de cuenta"
+
+    # Cabecera del cliente
+    hoja.append([settings.nombre_estudio])
+    hoja.cell(row=1, column=1).font = Font(bold=True, size=13)
+    hoja.append(["ESTADO DE CUENTA"])
+    hoja.cell(row=2, column=1).font = Font(bold=True, size=11)
+    hoja.append([])
+
+    # Datos del cliente
+    hoja.append(["Cliente:", cliente.nombre_completo])
+    if cliente.tipo_persona == "fisica":
+        hoja.append(["CUIT:", cliente.cuit or "—"])
+        hoja.append(["DNI:", cliente.dni or "—"])
+    else:
+        hoja.append(["CUIT:", cliente.cuit or "—"])
+    hoja.append(["Condición IVA:", cliente.tipo_actividad.replace("_", " ").title()])
+    hoja.append(["Email:", cliente.email or "—"])
+    tel = " ".join(filter(None, [cliente.cod_area, cliente.telefono]))
+    hoja.append(["Teléfono:", tel or "—"])
+    hoja.append([])
+
+    # Rango de fechas
+    if desde or hasta:
+        rango = f"Desde: {desde or 'inicio'}  —  Hasta: {hasta or 'hoy'}"
+        hoja.append([rango])
+        hoja.append([])
+
+    # Tabla de movimientos
+    columnas = [
+        ("Fecha", 12),
+        ("Concepto", 50),
+        ("DEBE", 14),
+        ("HABER", 14),
+        ("SALDO", 14),
+    ]
+    hoja.append([nombre for nombre, _ in columnas])
+    for celda in hoja[hoja.max_row]:
+        celda.font = Font(bold=True)
+
+    for mov in movimientos:
+        hoja.append(
+            [
+                mov.fecha.isoformat() if mov.fecha else "",
+                mov.concepto,
+                mov.debe,
+                mov.haber,
+                mov.saldo,
+            ]
+        )
+
+    # Totales
+    hoja.append([""] * len(columnas))
+    hoja.append(["", "TOTALES", total_debe, total_haber, saldo])
+    ultima = hoja.max_row
+    for col in range(2, 6):
+        hoja.cell(row=ultima, column=col).font = Font(bold=True)
+        hoja.cell(row=ultima, column=col).number_format = "#,##0.00"
+
+    for (nombre, ancho), letra in zip(columnas, "ABCDE"):
+        hoja.column_dimensions[letra].width = ancho
+
+    salida = BytesIO()
+    libro.save(salida)
+    return salida.getvalue()

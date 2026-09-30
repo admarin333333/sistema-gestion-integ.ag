@@ -15,11 +15,17 @@ export function AuthProvider({ children }) {
     }
     api("/auth/me")
       .then(setUser)
-      .catch(() => {})
+      .catch(() => {
+        // Token inválido/expirado → limpiamos y redirigimos a login
+        clearToken();
+        setUser(null);
+      })
       .finally(() => setCargando(false));
   }, []);
 
   async function login(usuario, password) {
+    // Limpiamos cualquier token anterior ANTES de loguear
+    clearToken();
     const { access_token } = await api("/auth/login", {
       method: "POST",
       body: { usuario, password },

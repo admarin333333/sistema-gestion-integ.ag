@@ -53,8 +53,40 @@ def listar(
         *_condiciones(cliente_id, estado, desde, hasta)
     )
     if descendente:
-        return consulta.order_by(Factura.fecha.desc(), Factura.id.desc()).all()
-    return consulta.order_by(Factura.fecha.asc(), Factura.id.asc()).all()
+        facturas = consulta.order_by(Factura.fecha.desc(), Factura.id.desc()).all()
+    else:
+        facturas = consulta.order_by(Factura.fecha.asc(), Factura.id.asc()).all()
+
+    # Calculamos lo aplicado (recibos + anticipos) para cada factura
+    if facturas:
+        ids = [f.id for f in facturas]
+        aplicados = _aplicados_por_factura(db, ids)
+        for f in facturas:
+            f.aplicado = aplicados.get(f.id, 0.0)
+
+    return facturas
+
+
+def _aplicados_por_factura(db: Session, factura_ids: list[int]) -> dict[int, float]:
+    """Devuelve dict {factura_id: total_aplicado} sumando recibos + anticipos."""
+    if not factura_ids:
+        return {}
+    por_recibos = dict(
+        db.query(Aplicacion.factura_id, func.coalesce(func.sum(Aplicacion.importe), 0))
+        .filter(Aplicacion.factura_id.in_(factura_ids))
+        .group_by(Aplicacion.factura_id)
+        .all()
+    )
+    por_anticipos = dict(
+        db.query(AplicacionAnticipo.factura_id, func.coalesce(func.sum(AplicacionAnticipo.importe), 0))
+        .filter(AplicacionAnticipo.factura_id.in_(factura_ids))
+        .group_by(AplicacionAnticipo.factura_id)
+        .all()
+    )
+    resultado = {}
+    for fid in factura_ids:
+        resultado[fid] = float(por_recibos.get(fid, 0)) + float(por_anticipos.get(fid, 0))
+    return resultado
 
 
 def total(

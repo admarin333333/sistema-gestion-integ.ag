@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Depends, status
+from datetime import date
+
+from fastapi import APIRouter, Depends, Query, status
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, require_role
@@ -7,6 +10,7 @@ from app.models.usuario import Usuario
 from app.schemas.recibo import (
     AplicacionCrear,
     AplicacionOut,
+    ETIQUETAS_FORMA,
     ReciboActualizar,
     ReciboCrear,
     ReciboOut,
@@ -15,14 +19,59 @@ from app.services import recibo_service
 
 router = APIRouter(prefix="/recibos", tags=["recibos"])
 
+_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
 
 @router.get("", response_model=list[ReciboOut])
 def listar(
-    cliente_id: int | None = None,
+    cliente_id: int | None = Query(default=None),
+    desde: date | None = Query(default=None),
+    hasta: date | None = Query(default=None),
     db: Session = Depends(get_db),
     user: Usuario = Depends(get_current_user),
 ):
-    return recibo_service.listar(db, cliente_id=cliente_id)
+    return recibo_service.listar(db, cliente_id=cliente_id, desde=desde, hasta=hasta)
+
+
+# OJO: va ANTES de /{recibo_id} para que "export.xlsx" no se interprete como id.
+@router.get("/export.xlsx")
+def exportar(
+    cliente_id: int | None = Query(default=None),
+    desde: date | None = Query(default=None),
+    hasta: date | None = Query(default=None),
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """Informe en Excel (.xlsx) con el total calculado por SQL."""
+    recibos = recibo_service.listar(
+        db, cliente_id=cliente_id, desde=desde, hasta=hasta
+    )
+    suma = recibo_service.total(
+        db, cliente_id=cliente_id, desde=desde, hasta=hasta
+    )
+    contenido = recibo_service.informe_excel(recibos, suma)
+    nombre = f"informe_recibos_{date.today().isoformat()}.xlsx"
+    return Response(
+        content=contenido,
+        media_type=_XLSX,
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+    )
+
+
+@router.get("/total")
+def total(
+    cliente_id: int | None = Query(default=None),
+    desde: date | None = Query(default=None),
+    hasta: date | None = Query(default=None),
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """Suma de los importes filtrados — la hace SQL, nunca el navegador."""
+    return {
+        "total": recibo_service.total(
+            db, cliente_id=cliente_id, desde=desde, hasta=hasta
+        )
+    }
 
 
 @router.post("", response_model=ReciboOut, status_code=status.HTTP_201_CREATED)
