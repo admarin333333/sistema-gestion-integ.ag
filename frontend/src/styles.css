@@ -1,0 +1,1039 @@
+/* ============================================================
+   Gestión — Estudio contable
+   PANEL ADMINISTRATIVO · tono "diseno-premium" elevado
+   Fondo azul marino con halos + grilla geométrica
+   Space Grotesk + IBM Plex Mono · acentos #4f8cff → #7c5cff
+   Esquinas cortadas (--cut) para el lado futurista.
+   ============================================================
+   ⚠️ Esta identidad es SOLO del panel. La web pública
+   (fiverr/portfolio/contable) queda en Blanco + Grafito.
+   ============================================================ */
+
+:root {
+  --bg: #070b14;
+  --bg-2: #0d1526;
+  --bg-3: #111b30;
+  --surface: rgba(255, 255, 255, 0.04);
+  --line: #1e2b45;
+  --line-soft: rgba(79, 140, 255, 0.2);
+
+  --text: #e9eefb; /* 17:1 sobre --bg */
+  --muted: #96a6c4; /* 8.0:1 sobre --bg */
+
+  --accent: #4f8cff; /* 6.1:1 sobre --bg */
+  --accent-2: #7c5cff; /* 4.5:1 sobre --bg */
+  --accent-3: #22d3ee;
+  --grad: linear-gradient(120deg, #2f5fe0 0%, #5a3fe6 100%); /* blanco 5.5:1 */
+
+  --ok: #34d399;
+  --err: #ffb4b4;
+  --err-bg: rgba(248, 113, 113, 0.13);
+
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+  --sans: "Space Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --cut: 14px;
+
+  --glow: 0 0 0 1px rgba(79, 140, 255, 0.35), 0 12px 34px rgba(47, 95, 224, 0.28);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--sans);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+
+  /* grilla geométrica + tres halos: azul, violeta y cian */
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(rgba(79, 140, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(79, 140, 255, 0.045) 1px, transparent 1px),
+    radial-gradient(
+      1000px 620px at 88% -12%,
+      rgba(79, 140, 255, 0.3) 0%,
+      transparent 58%
+    ),
+    radial-gradient(
+      820px 560px at -12% 105%,
+      rgba(124, 92, 255, 0.26) 0%,
+      transparent 58%
+    ),
+    radial-gradient(
+      620px 620px at 50% 130%,
+      rgba(34, 211, 238, 0.14) 0%,
+      transparent 60%
+    );
+  background-size: 44px 44px, 44px 44px, auto, auto, auto;
+  background-attachment: fixed;
+}
+
+h1,
+h2 {
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.08;
+  margin: 0 0 0.5em;
+}
+
+h1 {
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  background: linear-gradient(100deg, var(--text) 12%, var(--accent) 95%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+h2 {
+  font-size: 1.25rem;
+  margin-top: 2.5rem;
+}
+
+p {
+  margin: 0 0 1em;
+  color: var(--muted);
+}
+
+.wrap {
+  width: min(1160px, 92vw);
+  margin-inline: auto;
+}
+
+.kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 0.7rem;
+  color: var(--accent);
+  margin-bottom: 0.9rem;
+}
+
+/* barrita geométrica antes del kicker */
+.kicker::before {
+  content: "";
+  width: 26px;
+  height: 8px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-3));
+  clip-path: polygon(0 0, 100% 0, 82% 100%, 0 100%);
+}
+
+.lead {
+  font-size: 1.05rem;
+  color: var(--muted);
+}
+
+.lead b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* ---------- esquinas cortadas ---------- */
+.cut {
+  position: relative;
+  isolation: isolate;
+  clip-path: polygon(
+    var(--cut) 0,
+    100% 0,
+    100% calc(100% - var(--cut)),
+    calc(100% - var(--cut)) 100%,
+    0 100%,
+    0 var(--cut)
+  );
+}
+
+/* ---------- botones ---------- */
+.btn {
+  display: inline-block;
+  background: var(--grad);
+  color: #fff;
+  font-family: var(--sans);
+  font-weight: 600;
+  padding: 0.85rem 1.6rem;
+  border: 0;
+  cursor: pointer;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  clip-path: polygon(
+    10px 0,
+    100% 0,
+    100% calc(100% - 10px),
+    calc(100% - 10px) 100%,
+    0 100%,
+    0 10px
+  );
+  transition: transform 0.18s ease, filter 0.18s ease, box-shadow 0.18s ease;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.12);
+  box-shadow: var(--glow);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.btn-sm {
+  padding: 0.5rem 1rem;
+  font-size: 0.74rem;
+}
+
+/* botón secundario: contorno neón, sin relleno */
+.btn.fantasma {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--line);
+  color: var(--muted);
+}
+
+.btn.fantasma:hover {
+  box-shadow: inset 0 0 0 2px var(--accent);
+  color: var(--accent);
+  filter: none;
+}
+
+/* botón de peligro */
+.btn.peligro {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px rgba(248, 113, 113, 0.5);
+  color: #ff9d9d;
+}
+
+.btn.peligro:hover {
+  background: var(--err-bg);
+  box-shadow: inset 0 0 0 2px #f87171;
+  filter: none;
+}
+
+/* ---------- pantalla de carga ---------- */
+.pantalla-carga {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  font-family: var(--mono);
+  color: var(--accent);
+}
+
+/* ---------- login ---------- */
+.login {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 2rem 4vw;
+}
+
+.login-card {
+  width: min(420px, 100%);
+  background: linear-gradient(160deg, rgba(17, 27, 48, 0.92), rgba(13, 21, 38, 0.92));
+  backdrop-filter: blur(14px);
+  padding: 2.2rem 2rem;
+  box-shadow: inset 0 0 0 1px rgba(79, 140, 255, 0.3), 18px 18px 0 rgba(47, 95, 224, 0.16);
+  clip-path: polygon(
+    var(--cut) 0,
+    100% 0,
+    100% calc(100% - var(--cut)),
+    calc(100% - var(--cut)) 100%,
+    0 100%,
+    0 var(--cut)
+  );
+}
+
+.barra-roja {
+  display: block;
+  width: 60px;
+  height: 11px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-3));
+  clip-path: polygon(0 0, 100% 0, 82% 100%, 0 100%);
+  margin-bottom: 1.2rem;
+}
+
+.login-card h1 {
+  margin-bottom: 1.6rem;
+  font-size: 1.6rem;
+}
+
+.login-card label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-bottom: 1.1rem;
+}
+
+.login-card input {
+  width: 100%;
+  margin-top: 0.4rem;
+  padding: 0.7rem 0.85rem;
+  font: inherit;
+  font-size: 0.95rem;
+  border: 2px solid var(--line);
+  border-radius: 0;
+  background: rgba(7, 11, 20, 0.7);
+  color: var(--text);
+}
+
+.login-card input:focus {
+  outline: 0;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.18);
+}
+
+.login-card .btn {
+  width: 100%;
+  margin-top: 0.4rem;
+}
+
+.error {
+  background: var(--err-bg);
+  color: var(--err);
+  border-left: 3px solid #f87171;
+  font-size: 0.87rem;
+  font-weight: 500;
+  padding: 0.7rem 0.9rem;
+  margin: 0 0 1rem;
+}
+
+.ayuda {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin: 1.2rem 0 0;
+}
+
+.ayuda code {
+  background: rgba(79, 140, 255, 0.14);
+  color: var(--accent);
+  padding: 0.1rem 0.35rem;
+}
+
+/* ---------- barra superior ---------- */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  background: rgba(7, 11, 20, 0.82);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.topbar .wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem 0;
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 1.02rem;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+  color: var(--text);
+}
+
+.brand span {
+  background: linear-gradient(90deg, var(--accent), var(--accent-3));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hoy {
+  text-align: center;
+  line-height: 1.3;
+}
+
+.hoy b {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.hoy small {
+  font-size: 0.7rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* ---------- menú ---------- */
+.menu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 1.4rem 0 0;
+}
+
+.item {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  background: var(--surface);
+  cursor: default;
+}
+
+.item.activo {
+  background: var(--grad);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(47, 95, 224, 0.35);
+}
+
+.item.disponible {
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.item.disponible:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.item i {
+  font-style: normal;
+  margin-left: 0.5rem;
+  color: var(--accent-2);
+  font-weight: 600;
+}
+
+/* ---------- contenido ---------- */
+main {
+  padding: 2.5rem 0 4rem;
+  position: relative;
+  z-index: 1;
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.9rem;
+  margin: 1.8rem 0 0.6rem;
+}
+
+.kpi {
+  background: linear-gradient(160deg, rgba(17, 27, 48, 0.9), rgba(13, 21, 38, 0.9));
+  padding: 1.3rem 1.1rem;
+  box-shadow: inset 0 0 0 1px var(--line);
+  clip-path: polygon(
+    var(--cut) 0,
+    100% 0,
+    100% calc(100% - var(--cut)),
+    calc(100% - var(--cut)) 100%,
+    0 100%,
+    0 var(--cut)
+  );
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.kpi:hover {
+  transform: translateY(-3px);
+  box-shadow: inset 0 0 0 1px var(--accent), var(--glow);
+}
+
+.kpi b {
+  display: block;
+  font-family: var(--mono);
+  font-size: 1.6rem;
+  font-weight: 500;
+  background: linear-gradient(100deg, var(--accent-3), var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.kpi span {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--muted);
+}
+
+.nota {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+.fases {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.fases li {
+  padding: 0.7rem 1rem;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+
+.fases li b {
+  font-family: var(--mono);
+  color: var(--text);
+  margin-right: 0.4rem;
+}
+
+.fases li.ok {
+  box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.45);
+  color: var(--text);
+}
+
+.fases li.ok b {
+  color: var(--ok);
+}
+
+/* ---------- buscador ---------- */
+.buscador {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 1.4rem 0;
+}
+
+.buscador input {
+  flex: 1 1 260px;
+  padding: 0.7rem 0.95rem;
+  font: inherit;
+  font-size: 0.95rem;
+  border: 2px solid var(--line);
+  background: rgba(7, 11, 20, 0.7);
+  color: var(--text);
+}
+
+.buscador input:focus {
+  outline: 0;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.18);
+}
+
+/* filtros de listados: mismo aspecto que los inputs */
+.buscador select {
+  flex: 1 1 170px;
+  padding: 0.7rem 0.95rem;
+  font: inherit;
+  font-size: 0.95rem;
+  border: 2px solid var(--line);
+  background: rgba(7, 11, 20, 0.7);
+  color: var(--text);
+}
+
+.buscador select:focus {
+  outline: 0;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.18);
+}
+
+/* números siempre a la derecha */
+.derecha {
+  text-align: right;
+}
+
+/* los campos con rótulo dentro del buscador ocupan su propio espacio */
+.buscador .campo {
+  flex: 1 1 180px;
+}
+
+/* ---------- tabla ---------- */
+.tabla-envoltura {
+  overflow-x: auto;
+  box-shadow: inset 0 0 0 1px var(--line);
+  background: rgba(13, 21, 38, 0.75);
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  min-width: 720px;
+}
+
+.tabla th {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  text-align: left;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--line-soft);
+  background: rgba(79, 140, 255, 0.07);
+}
+
+.tabla td {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  vertical-align: middle;
+}
+
+.tabla tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.tabla tbody tr {
+  transition: background 0.15s ease;
+}
+
+.tabla tbody tr:hover {
+  background: rgba(79, 140, 255, 0.08);
+}
+
+.tabla td small {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+}
+
+.tabla .vacio {
+  text-align: center;
+  padding: 2.4rem 1rem;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.82rem;
+}
+
+.mono {
+  font-family: var(--mono);
+  font-size: 0.84rem;
+}
+
+.acciones {
+  display: flex;
+  gap: 0.45rem;
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
+.tabla td.acciones {
+  display: table-cell;
+}
+
+/* ---------- formularios ---------- */
+.form {
+  display: grid;
+  gap: 1.1rem;
+  max-width: 860px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 1.1rem;
+}
+
+.campo {
+  display: block;
+}
+
+.campo > span {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--muted);
+  margin-bottom: 0.4rem;
+}
+
+.campo .obligatorio {
+  color: var(--accent-3);
+}
+
+.campo input,
+.campo select,
+.campo textarea {
+  width: 100%;
+  padding: 0.7rem 0.85rem;
+  font: inherit;
+  font-size: 0.95rem;
+  border: 2px solid var(--line);
+  background: rgba(7, 11, 20, 0.7);
+  color: var(--text);
+}
+
+.campo textarea {
+  min-height: 130px;
+  resize: vertical;
+}
+
+.campo input:focus,
+.campo select:focus,
+.campo textarea:focus {
+  outline: 0;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.18);
+}
+
+.campo select option {
+  background: var(--bg-2);
+  color: var(--text);
+}
+
+.fieldset {
+  border: 0;
+  padding: 1.2rem;
+  margin: 0;
+  background: rgba(13, 21, 38, 0.6);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.fieldset legend {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+  padding: 0 0.5rem;
+}
+
+.checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 0.55rem;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.88rem;
+  color: var(--text);
+  padding: 0.5rem 0.7rem;
+  background: rgba(79, 140, 255, 0.06);
+  box-shadow: inset 0 0 0 1px var(--line);
+  cursor: pointer;
+  transition: box-shadow 0.15s ease;
+}
+
+.check:hover {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.check input {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+}
+
+.form-acciones {
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ---------- ficha / pestañas ---------- */
+.cabecera-ficha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 1.6rem;
+}
+
+.pestanas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 1.6rem;
+}
+
+.pestana {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.7rem 1rem;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.pestana:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.pestana.activa {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  text-shadow: 0 0 14px rgba(79, 140, 255, 0.6);
+}
+
+.pestana:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.pestana i {
+  font-style: normal;
+  margin-left: 0.4rem;
+  color: var(--accent-2);
+}
+
+/* panel genérico de contenido */
+.panel {
+  background: rgba(13, 21, 38, 0.75);
+  box-shadow: inset 0 0 0 1px var(--line);
+  padding: 1.5rem;
+  clip-path: polygon(
+    var(--cut) 0,
+    100% 0,
+    100% calc(100% - var(--cut)),
+    calc(100% - var(--cut)) 100%,
+    0 100%,
+    0 var(--cut)
+  );
+}
+
+.panel h3 {
+  margin: 0 0 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.detalle {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.2rem 1.6rem;
+  margin: 0;
+}
+
+.detalle div {
+  min-width: 0;
+}
+
+.detalle dt {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  margin-bottom: 0.25rem;
+}
+
+.detalle dd {
+  margin: 0;
+  font-size: 0.98rem;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.detalle dd.vacio {
+  color: var(--muted);
+}
+
+/* chips de estado */
+.chip {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.22rem 0.6rem;
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--muted);
+}
+
+.chip.pendiente {
+  box-shadow: inset 0 0 0 1px rgba(255, 196, 0, 0.5);
+  color: #ffd469;
+}
+
+.chip.atendida {
+  box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.5);
+  color: var(--ok);
+}
+
+/* ya se mandó al cliente por mail */
+.chip.enviada {
+  box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.5);
+  color: var(--ok);
+  margin-left: 0.35rem;
+}
+
+/* lista de sugerencias */
+.lista-vacia {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--muted);
+  padding: 1rem 0;
+}
+
+/* ---------- pie ---------- */
+.pie {
+  background: rgba(7, 11, 20, 0.9);
+  border-top: 1px solid var(--line-soft);
+  color: var(--muted);
+  padding: 1.4rem 0;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ---------- responsive ---------- */
+@media (max-width: 900px) {
+  .kpis {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .topbar .wrap {
+    flex-wrap: wrap;
+  }
+
+  .hoy {
+    order: 3;
+    width: 100%;
+    text-align: left;
+    border-top: 1px solid var(--line);
+    padding-top: 0.6rem;
+  }
+
+  .kpis {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .acciones {
+    flex-wrap: wrap;
+  }
+}
+
+/* ---------- estados de comprobante y anticipo ---------- */
+.chip.parcial {
+  box-shadow: inset 0 0 0 1px rgba(79, 140, 255, 0.5);
+  color: var(--accent);
+}
+
+.chip.pagada,
+.chip.disponible {
+  box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.5);
+  color: var(--ok);
+}
+
+.chip.anulada,
+.chip.eliminado {
+  box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.5);
+  color: #ff9d9d;
+}
+
+.chip.aplicado {
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--muted);
+}
+
+/* ---------- impresión de listados ---------- */
+/* en pantalla no se ve: solo aparece al imprimir */
+.solo-impresion {
+  display: none;
+}
+
+@media print {
+  .solo-impresion {
+    display: block;
+    border-bottom: 2px solid #000;
+    padding-bottom: 0.4rem;
+    margin-bottom: 1.2rem;
+  }
+
+  .solo-impresion b {
+    display: block;
+    font-size: 1.25rem;
+    letter-spacing: 0.06em;
+    color: #000;
+  }
+
+  .solo-impresion span {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: #444;
+  }
+
+  .topbar,
+  .menu,
+  .pie,
+  .buscador,
+  .acciones,
+  .col-tilde,
+  .kicker,
+  h1,
+  .lead,
+  .error {
+    display: none !important;
+  }
+
+  body,
+  .tabla-envoltura {
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+
+  main {
+    width: 100% !important;
+  }
+
+  .tabla {
+    min-width: 0;
+    font-size: 0.85rem;
+  }
+
+  .tabla th {
+    background: #eee !important;
+    color: #000 !important;
+    border-bottom: 1px solid #000;
+  }
+
+  .tabla td {
+    color: #000 !important;
+    border-bottom: 1px solid #ccc;
+  }
+
+  .tabla tbody tr:hover {
+    background: none;
+  }
+
+  .tabla tfoot td {
+    color: #000;
+    border-top: 2px solid #000;
+  }
+
+  .chip {
+    box-shadow: inset 0 0 0 1px #999 !important;
+    color: #333 !important;
+  }
+
+  .nota {
+    color: #444 !important;
+  }
+}

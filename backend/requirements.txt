@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+sqlalchemy>=2.0
+pymysql
+pydantic[email]
+pydantic-settings
+PyJWT
+bcrypt
