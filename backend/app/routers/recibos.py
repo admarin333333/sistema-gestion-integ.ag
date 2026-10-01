@@ -112,6 +112,24 @@ def eliminar(
     return None
 
 
+@router.post("/{recibo_id}/anular", response_model=ReciboOut)
+def anular(
+    recibo_id: int,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_role("admin")),
+):
+    return recibo_service.anular(db, recibo_id)
+
+
+@router.post("/{recibo_id}/reabrir", response_model=ReciboOut)
+def reabrir(
+    recibo_id: int,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(require_role("admin")),
+):
+    return recibo_service.reabrir(db, recibo_id)
+
+
 # ------------------------------------------------------------- aplicaciones
 @router.get("/{recibo_id}/aplicaciones", response_model=list[AplicacionOut])
 def listar_aplicaciones(

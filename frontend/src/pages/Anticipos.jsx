@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
+import { descargar } from "../api/client.js";
 import { listarClientes } from "../api/clientes.js";
 import {
   ESTADOS,
@@ -230,9 +231,11 @@ export default function Anticipos({ ir, aviso }) {
 
           <tfoot>
             <tr>
-              <td colSpan="3"><b>TOTAL</b></td>
-              <td className="mono derecha"><b>{pesos(lista.reduce((s, a) => s + a.importe, 0))}</b></td>
-              <td colSpan="2"></td>
+              <td colSpan="4"><b>TOTAL</b></td>
+              <td className="mono derecha">
+                <b>{pesos(lista.reduce((s, a) => s + a.importe, 0))}</b>
+              </td>
+              <td></td>
             </tr>
           </tfoot>
         </table>

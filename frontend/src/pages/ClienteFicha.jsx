@@ -12,7 +12,7 @@ import {
   obtenerCuentaCorriente,
   exportarCuentaCorriente,
 } from "../api/cuentaCorriente.js";
-import { NOMBRE_ESTUDIO, fecha, pesos } from "../formato.js";
+import { NOMBRE_ESTUDIO, fecha, pesos, whatsappLink, formatearTelefono } from "../formato.js";
 
 const hoy = () => {
   const d = new Date();
@@ -56,6 +56,10 @@ export default function ClienteFicha({ clienteId, esAdmin, onVolver, onEditar })
     }
   };
 
+  useEffect(() => {
+    recargar();
+  }, [clienteId]);
+
   const cargarCuentaCorriente = async () => {
     setCcCargando(true);
     setCcError("");
@@ -70,17 +74,10 @@ export default function ClienteFicha({ clienteId, esAdmin, onVolver, onEditar })
   };
 
   useEffect(() => {
-    recargar();
-  }, [clienteId]);
-
-  useEffect(() => {
     if (pestana === "cuenta") {
       cargarCuentaCorriente();
     }
   }, [pestana, filtrosCC]);
-
-  if (error) return <p className="error">{error}</p>;
-  if (!cliente) return <p className="nota">Cargando ficha…</p>;
 
   const guardarObservaciones = async (texto) => {
     setGuardando(true);
@@ -178,6 +175,17 @@ export default function ClienteFicha({ clienteId, esAdmin, onVolver, onEditar })
           <button className="btn btn-sm" onClick={onEditar}>
             Editar
           </button>
+          {(cliente.cod_area || cliente.telefono) && (
+            <a
+              className="btn btn-sm"
+              href={whatsappLink(cliente.cod_area, cliente.telefono)}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`Enviar WhatsApp a ${formatearTelefono(cliente.cod_area, cliente.telefono)}`}
+            >
+              WhatsApp
+            </a>
+          )}
           {esAdmin && (
             <button className="btn peligro btn-sm" onClick={borrarCliente}>
               Eliminar
@@ -230,11 +238,7 @@ export default function ClienteFicha({ clienteId, esAdmin, onVolver, onEditar })
             </div>
             <div>
               <dt>Teléfono</dt>
-              <dd className="mono">
-                {dato(
-                  [cliente.cod_area, cliente.telefono].filter(Boolean).join(" ")
-                )}
-              </dd>
+              <dd className="mono">{formatearTelefono(cliente.cod_area, cliente.telefono)}</dd>
             </div>
             <div>
               <dt>Domicilio</dt>
@@ -475,6 +479,23 @@ function CuentaCorrienteTab({
       </div>
 
       <p className="nota">Saldo final a la fecha: <b>{pesos(cc.saldo)}</b></p>
+
+      <style jsx>{`
+        .cc-cabecera {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 2rem;
+          margin-bottom: 1rem;
+          padding-bottom: 1rem;
+          border-bottom: 1px solid var(--line);
+        }
+        .cc-cabecera h3 { margin: 0 0 0.3rem; }
+        .cc-datos { display: flex; flex-wrap: wrap; gap: 1.5rem; font-size: 0.85rem; color: var(--muted); }
+        .cc-datos b { color: var(--text); }
+        @media print {
+          .buscador { display: none !important; }
+        }
+      `}</style>
     </div>
   );
 }

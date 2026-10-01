@@ -2,18 +2,15 @@ import { useEffect, useState } from "react";
 import { listarClientes } from "../api/clientes.js";
 import { listarFacturas } from "../api/facturas.js";
 import {
-  FORMAS,
   ESTADOS,
   aPayload,
-  actualizarRecibo,
-  crearRecibo,
-  obtenerRecibo,
+  actualizarAnticipo,
+  crearAnticipo,
+  obtenerAnticipo,
   listarAplicaciones,
-  aplicarRecibo,
-  desaplicarRecibo,
-  anularRecibo,
-  reabrirRecibo,
-} from "../api/recibos.js";
+  aplicarAnticipo,
+  desaplicarAnticipo,
+} from "../api/anticipos.js";
 
 const HOY = new Date().toISOString().slice(0, 10);
 
@@ -21,11 +18,10 @@ const VACIO = {
   cliente_id: "",
   fecha: HOY,
   importe: "",
-  forma_pago: "transferencia",
 };
 
-export default function ReciboForm({ reciboId, onGuardado, onCancelar }) {
-  const esEdicion = Boolean(reciboId);
+export default function AnticipoForm({ anticipoId, onGuardado, onCancelar }) {
+  const esEdicion = Boolean(anticipoId);
   const [datos, setDatos] = useState(VACIO);
   const [clientes, setClientes] = useState([]);
   const [facturas, setFacturas] = useState([]);
@@ -34,7 +30,7 @@ export default function ReciboForm({ reciboId, onGuardado, onCancelar }) {
   const [error, setError] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [nuevaAplicacion, setNuevaAplicacion] = useState({ factura_id: "", importe: "" });
-  const [recibo, setRecibo] = useState(null);
+  const [anticipo, setAnticipo] = useState(null);
 
   useEffect(() => {
     listarClientes()
@@ -61,20 +57,19 @@ export default function ReciboForm({ reciboId, onGuardado, onCancelar }) {
 
   useEffect(() => {
     if (!esEdicion) return;
-    obtenerRecibo(reciboId)
-      .then((r) => {
-        setRecibo(r);
+    obtenerAnticipo(anticipoId)
+      .then((a) => {
+        setAnticipo(a);
         setDatos({
-          cliente_id: String(r.cliente_id),
-          fecha: r.fecha,
-          importe: r.importe,
-          forma_pago: r.forma_pago,
+          cliente_id: String(a.cliente_id),
+          fecha: a.fecha,
+          importe: a.importe,
         });
-        cargarFacturas(r.cliente_id);
+        cargarFacturas(a.cliente_id);
       })
       .catch((e) => setError(e.message))
       .finally(() => setCargando(false));
-  }, [reciboId, esEdicion]);
+  }, [anticipoId, esEdicion]);
 
   useEffect(() => {
     if (!esEdicion || !datos.cliente_id) return;
@@ -82,9 +77,9 @@ export default function ReciboForm({ reciboId, onGuardado, onCancelar }) {
   }, [datos.cliente_id, esEdicion]);
 
   const cargarAplicaciones = async () => {
-    if (!reciboId) return;
+    if (!anticipoId) return;
     try {
-      const apps = await listarAplicaciones(reciboId);
+      const apps = await listarAplicaciones(anticipoId);
       setAplicaciones(apps);
     } catch {
       setAplicaciones([]);
@@ -93,7 +88,7 @@ export default function ReciboForm({ reciboId, onGuardado, onCancelar }) {
 
   useEffect(() => {
     cargarAplicaciones();
-  }, [reciboId]);
+  }, [anticipoId]);
 
   const set = (campo) => (e) => setDatos((d) => ({ ...d, [campo]: e.target.value }));
 
@@ -106,8 +101,8 @@ export default function ReciboForm({ reciboId, onGuardado, onCancelar }) {
   const guardar = async () => {
     const cuerpo = aPayload(datos);
     return esEdicion
-      ? await actualizarRecibo(reciboId, cuerpo)
-      : await crearRecibo(cuerpo);
+      ? await actualizarAnticipo(anticipoId, cuerpo)
+      : await crearAnticipo(cuerpo);
   };
 
   const enviar = async (e) => {
@@ -129,12 +124,12 @@ export default function ReciboForm({ reciboId, onGuardado, onCancelar }) {
     if (!nuevaAplicacion.factura_id || !nuevaAplicacion.importe) return;
     const importe = Number(nuevaAplicacion.importe);
     if (importe > libre + 0.005) {
-      setError(`El recibo solo tiene $${libre.toFixed(2)} sin aplicar`);
+      setError(`El anticipo solo tiene $${libre.toFixed(2)} sin imputar`);
       return;
     }
     setError("");
     try {
-      await aplicarRecibo(reciboId, {
+      await aplicarAnticipo(anticipoId, {
         factura_id: Number(nuevaAplicacion.factura_id),
         importe,
       });
@@ -146,35 +141,10 @@ export default function ReciboForm({ reciboId, onGuardado, onCancelar }) {
   };
 
   const quitarAplicacion = async (appId) => {
-    if (!window.confirm("¿Quitar esta aplicación?")) return;
+    if (!window.confirm("¿Quitar esta imputación?")) return;
     try {
-      await desaplicarRecibo(appId);
+      await desaplicarAnticipo(appId);
       await cargarAplicaciones();
-    } catch (e2) {
-      setError(e2.message);
-    }
-  };
-
-  const manejarAnular = async () => {
-    if (!window.confirm("¿Anular este recibo? Se desaplicarán sus aplicaciones.")) return;
-    try {
-      await anularRecibo(reciboId);
-      const r = await obtenerRecibo(reciboId);
-      setRecibo(r);
-      setDatos({ ...datos, ...r });
-      await cargarAplicaciones();
-    } catch (e2) {
-      setError(e2.message);
-    }
-  };
-
-  const manejarReabrir = async () => {
-    if (!window.confirm("¿Reabrir este recibo anulado?")) return;
-    try {
-      await reabrirRecibo(reciboId);
-      const r = await obtenerRecibo(reciboId);
-      setRecibo(r);
-      setDatos({ ...datos, ...r });
     } catch (e2) {
       setError(e2.message);
     }
@@ -182,12 +152,10 @@ export default function ReciboForm({ reciboId, onGuardado, onCancelar }) {
 
   if (cargando) return <p className="nota">Cargando…</p>;
 
-  const esAnulado = recibo?.estado === "anulado";
-
   return (
     <section>
-      <span className="kicker">Recibos</span>
-      <h1>{esEdicion ? "Modificar recibo" : "Nuevo recibo"}</h1>
+      <span className="kicker">Anticipos</span>
+      <h1>{esEdicion ? "Modificar anticipo" : "Nuevo anticipo"}</h1>
       <p className="lead">
         Los campos con <span style={{ color: "var(--accent-3)" }}>*</span> son
         obligatorios. El número se genera automáticamente.
@@ -197,7 +165,7 @@ export default function ReciboForm({ reciboId, onGuardado, onCancelar }) {
 
       <form className="form" onSubmit={enviar}>
         <fieldset className="fieldset">
-          <legend>Recibo</legend>
+          <legend>Anticipo</legend>
           <div className="form-grid">
             <label className="campo">
               <span>
@@ -220,10 +188,10 @@ export default function ReciboForm({ reciboId, onGuardado, onCancelar }) {
               <input type="date" value={datos.fecha} onChange={set("fecha")} />
             </label>
 
-            {esEdicion && recibo && (
+            {esEdicion && anticipo && (
               <label className="campo">
                 <span>Número (automático)</span>
-                <input value={recibo.numero} readOnly style={{ background: "var(--bg-2)" }} />
+                <input value={anticipo.numero} readOnly style={{ background: "var(--bg-2)" }} />
               </label>
             )}
 
@@ -240,58 +208,24 @@ export default function ReciboForm({ reciboId, onGuardado, onCancelar }) {
                 placeholder="0,00"
               />
             </label>
-
-            <label className="campo">
-              <span>
-                Forma de pago <b className="obligatorio">*</b>
-              </span>
-              <select value={datos.forma_pago} onChange={set("forma_pago")}>
-                {Object.entries(FORMAS).map(([k, v]) => (
-                  <option key={k} value={k}>
-                    {v}
-                  </option>
-                ))}
-              </select>
-            </label>
           </div>
         </fieldset>
 
-        {esEdicion && recibo && (
+        {esEdicion && anticipo && (
           <fieldset className="fieldset">
-            <legend>Estado: <span className={`chip ${recibo.estado}`}>{ESTADOS[recibo.estado] || recibo.estado}</span></legend>
-            <div className="form-acciones" style={{ gap: "0.5rem" }}>
-              {esAnulado ? (
-                <button
-                  type="button"
-                  className="btn btn-sm"
-                  onClick={manejarReabrir}
-                  disabled={enviando}
-                >
-                  Reabrir
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="btn btn-sm peligro"
-                  onClick={manejarAnular}
-                  disabled={enviando}
-                >
-                  Anular
-                </button>
-              )}
-            </div>
+            <legend>Estado: <span className={`chip ${anticipo.estado}`}>{anticipo.estado}</span></legend>
           </fieldset>
         )}
 
-        {esEdicion && (
+        {esEdicion && anticipo && anticipo.estado !== "aplicado" && (
           <>
             <fieldset className="fieldset">
               <legend>
-                Aplicar a facturas <small>(pendientes o parciales del cliente)</small>
+                Imputar a facturas <small>(pendientes o parciales del cliente)</small>
               </legend>
               <p className="nota">
-                Importe del recibo: <b>{Number(datos.importe || 0).toFixed(2)}</b> ·
-                Ya aplicado: <b>{importeAplicado.toFixed(2)}</b> ·
+                Importe del anticipo: <b>{Number(datos.importe || 0).toFixed(2)}</b> ·
+                Ya imputado: <b>{importeAplicado.toFixed(2)}</b> ·
                 Disponible: <b style={{ color: "var(--accent-3)" }}>{libre.toFixed(2)}</b>
               </p>
 
@@ -307,7 +241,7 @@ export default function ReciboForm({ reciboId, onGuardado, onCancelar }) {
                       onChange={setApp("factura_id")}
                       aria-label="Factura"
                     >
-                      <option value="">Elegí factura a pagar…</option>
+                      <option value="">Elegí factura a imputar…</option>
                       {facturas.map((f) => (
                         <option key={f.id} value={f.id}>
                           {f.tipo_comprobante} {f.punto_venta}-{f.numero} —
@@ -331,7 +265,7 @@ export default function ReciboForm({ reciboId, onGuardado, onCancelar }) {
                       />
                     </label>
                     <button className="btn btn-sm" type="submit" disabled={libre <= 0.005}>
-                      + Aplicar
+                      + Imputar
                     </button>
                   </form>
 
@@ -342,7 +276,7 @@ export default function ReciboForm({ reciboId, onGuardado, onCancelar }) {
                           <tr>
                             <th>Factura</th>
                             <th>Concepto</th>
-                            <th className="derecha">Importe aplicado</th>
+                            <th className="derecha">Importe imputado</th>
                             <th></th>
                           </tr>
                         </thead>
@@ -358,7 +292,6 @@ export default function ReciboForm({ reciboId, onGuardado, onCancelar }) {
                                 <button
                                   className="btn btn-sm peligro"
                                   onClick={() => quitarAplicacion(a.id)}
-                                  disabled={esAnulado}
                                 >
                                   Quitar
                                 </button>
@@ -375,8 +308,28 @@ export default function ReciboForm({ reciboId, onGuardado, onCancelar }) {
           </>
         )}
 
+        {esEdicion && anticipo && anticipo.estado === "aplicado" && (
+          <div className="panel" style={{ marginTop: "1rem", textAlign: "center" }}>
+            <span className="chip aplicado">Anticipo totalmente imputado (Aplicado)</span>
+            <p className="nota" style={{ marginTop: "0.5rem" }}>
+              Este anticipo ya fue imputado en su totalidad. No se pueden agregar más imputaciones.
+              <br />
+              Si necesitás imputar a otra factura, quitá alguna imputación existente.
+            </p>
+          </div>
+        )}
+
+        {esEdicion && anticipo && anticipo.estado === "eliminado" && (
+          <div className="panel" style={{ marginTop: "1rem", textAlign: "center" }}>
+            <span className="chip eliminado">Anticipo eliminado</span>
+            <p className="nota" style={{ marginTop: "0.5rem" }}>
+              Este anticipo fue eliminado. No se pueden realizar modificaciones ni imputaciones.
+            </p>
+          </div>
+        )}
+
         <div className="form-acciones">
-          <button className="btn" type="submit" disabled={enviando || esAnulado}>
+          <button className="btn" type="submit" disabled={enviando}>
             {enviando ? "Guardando…" : esEdicion ? "Guardar cambios" : "Dar de alta"}
           </button>
           <button className="btn fantasma" type="button" onClick={onCancelar}>

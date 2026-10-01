@@ -4,9 +4,12 @@ import { descargar } from "../api/client.js";
 import { listarClientes } from "../api/clientes.js";
 import {
   FORMAS,
+  ESTADOS,
   listarRecibos,
   totalRecibos,
   eliminarRecibo,
+  anularRecibo,
+  reabrirRecibo,
   query,
 } from "../api/recibos.js";
 import { NOMBRE_ESTUDIO, fecha, pesos } from "../formato.js";
@@ -94,6 +97,18 @@ export default function Recibos({ ir, aviso }) {
     }
   };
 
+  const anular = (r) => {
+    if (window.confirm(`¿Anular el recibo ${r.numero}? Se desaplicarán sus aplicaciones.`)) {
+      hacer(() => anularRecibo(r.id));
+    }
+  };
+
+  const reabrir = (r) => {
+    if (window.confirm(`¿Reabrir el recibo anulado ${r.numero}?`)) {
+      hacer(() => reabrirRecibo(r.id));
+    }
+  };
+
   const mensajes = [aviso, error].filter(Boolean).join(" · ");
 
   return (
@@ -166,6 +181,7 @@ export default function Recibos({ ir, aviso }) {
               <th>Cliente</th>
               <th>Forma de pago</th>
               <th className="derecha">Importe</th>
+              <th>Estado</th>
               <th></th>
             </tr>
           </thead>
@@ -173,7 +189,7 @@ export default function Recibos({ ir, aviso }) {
           <tbody>
             {cargando && (
               <tr>
-                <td colSpan="6" className="vacio">
+                <td colSpan="7" className="vacio">
                   Cargando…
                 </td>
               </tr>
@@ -181,7 +197,7 @@ export default function Recibos({ ir, aviso }) {
 
             {!cargando && lista.length === 0 && (
               <tr>
-                <td colSpan="6" className="vacio">
+                <td colSpan="7" className="vacio">
                   No hay recibos con esos filtros.
                 </td>
               </tr>
@@ -197,6 +213,9 @@ export default function Recibos({ ir, aviso }) {
                   </td>
                   <td>{FORMAS[r.forma_pago] || r.forma_pago}</td>
                   <td className="mono derecha">{pesos(r.importe)}</td>
+                  <td>
+                    <span className={`chip ${r.estado}`}>{ESTADOS[r.estado] || r.estado}</span>
+                  </td>
                   <td className="acciones">
                     <button
                       className="btn btn-sm fantasma"
@@ -210,6 +229,22 @@ export default function Recibos({ ir, aviso }) {
                     >
                       PDF
                     </button>
+                    {esAdmin && r.estado === "emitido" && (
+                      <button
+                        className="btn btn-sm peligro"
+                        onClick={() => anular(r)}
+                      >
+                        Anular
+                      </button>
+                    )}
+                    {esAdmin && r.estado === "anulado" && (
+                      <button
+                        className="btn btn-sm"
+                        onClick={() => reabrir(r)}
+                      >
+                        Reabrir
+                      </button>
+                    )}
                     {esAdmin && (
                       <button
                         className="btn btn-sm peligro"
@@ -225,7 +260,7 @@ export default function Recibos({ ir, aviso }) {
 
           <tfoot>
             <tr>
-              <td colSpan="4"><b>TOTAL</b></td>
+              <td colSpan="5"><b>TOTAL</b></td>
               <td className="mono derecha"><b>{pesos(total)}</b></td>
               <td></td>
             </tr>

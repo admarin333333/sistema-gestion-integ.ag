@@ -9,7 +9,9 @@ from app.routers import (
     anticipos,
     auth,
     clientes,
+    dashboard,
     facturas,
+    informes,
     localidades,
     recibos,
     servicios,
@@ -38,6 +40,8 @@ app.include_router(localidades.router, prefix=settings.api_prefix)
 app.include_router(facturas.router, prefix=settings.api_prefix)
 app.include_router(recibos.router, prefix=settings.api_prefix)
 app.include_router(anticipos.router, prefix=settings.api_prefix)
+app.include_router(dashboard.router, prefix=settings.api_prefix)
+app.include_router(informes.router, prefix=settings.api_prefix)
 
 
 @app.exception_handler(Rechazo)
@@ -58,4 +62,4 @@ def _validacion(_request: Request, exc: RequestValidationError):
 
 @app.get("/health", tags=["salud"])
 def health():
-    return {"status": "ok", "fase": 2}
+    return {"status": "ok", "fase": 4}

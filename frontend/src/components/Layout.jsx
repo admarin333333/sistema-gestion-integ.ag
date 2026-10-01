@@ -10,13 +10,20 @@ import FacturaForm from "../pages/FacturaForm.jsx";
 import Recibos from "../pages/Recibos.jsx";
 import ReciboForm from "../pages/ReciboForm.jsx";
 import EstadoCuenta from "../pages/EstadoCuenta.jsx";
+import Anticipos from "../pages/Anticipos.jsx";
+import AnticipoForm from "../pages/AnticipoForm.jsx";
+import EstadoDeudaTotal from "../pages/EstadoDeudaTotal.jsx";
+import AnticiposPendientes from "../pages/AnticiposPendientes.jsx";
 
 const MENU = [
   { label: "Dashboard", fase: 1, ir: "dashboard" },
   { label: "Clientes", fase: 2, ir: "clientes" },
   { label: "Facturas", fase: 3, ir: "facturas" },
   { label: "Recibos", fase: 3, ir: "recibos" },
+  { label: "Anticipos", fase: 3, ir: "anticipos" },
   { label: "Estado de cuenta", fase: 3, ir: "cuenta" },
+  { label: "Estado de deuda", fase: 4, ir: "estado-deuda" },
+  { label: "Anticipos pendientes", fase: 4, ir: "anticipos-pendientes" },
   { label: "Informes", fase: 5 },
 ];
 
@@ -33,7 +40,12 @@ const GRUPOS = {
   recibos: "recibos",
   "recibo-alta": "recibos",
   "recibo-editar": "recibos",
+  anticipos: "anticipos",
+  "anticipo-alta": "anticipos",
+  "anticipo-editar": "anticipos",
   cuenta: "cuenta",
+  "estado-deuda": "estado-deuda",
+  "anticipos-pendientes": "anticipos-pendientes",
 };
 
 const fechaHoy = () =>
@@ -131,8 +143,29 @@ export default function Layout() {
             onCancelar={() => ir("recibos")}
           />
         );
+      case "anticipos":
+        return <Anticipos ir={ir} aviso={pagina.aviso} />;
+      case "anticipo-alta":
+        return (
+          <AnticipoForm
+            onGuardado={(r, aviso) => ir("anticipos", null, aviso)}
+            onCancelar={() => ir("anticipos")}
+          />
+        );
+      case "anticipo-editar":
+        return (
+          <AnticipoForm
+            anticipoId={pagina.id}
+            onGuardado={(r, aviso) => ir("anticipos", null, aviso)}
+            onCancelar={() => ir("anticipos")}
+          />
+        );
       case "cuenta":
         return <EstadoCuenta ir={ir} />;
+      case "estado-deuda":
+        return <EstadoDeudaTotal ir={ir} />;
+      case "anticipos-pendientes":
+        return <AnticiposPendientes ir={ir} />;
       default:
         return <Dashboard ir={ir} />;
     }

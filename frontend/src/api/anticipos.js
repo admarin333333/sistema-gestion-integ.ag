@@ -22,21 +22,20 @@ export const crearAnticipo = (cuerpo) => api("/anticipos", { method: "POST", bod
 export const actualizarAnticipo = (id, cuerpo) => api(`/anticipos/${id}`, { method: "PUT", body: cuerpo });
 export const eliminarAnticipo = (id) => api(`/anticipos/${id}`, { method: "DELETE" });
 
-// aplicaciones (imputaciones a facturas)
+// aplicaciones (imputaciones)
 export const listarAplicaciones = (anticipoId) => api(`/anticipos/${anticipoId}/aplicaciones`);
 export const aplicarAnticipo = (anticipoId, cuerpo) =>
   api(`/anticipos/${anticipoId}/aplicaciones`, { method: "POST", body: cuerpo });
 export const desaplicarAnticipo = (aplicacionId) =>
   api(`/anticipos/aplicaciones/${aplicacionId}`, { method: "DELETE" });
 
-// informes
+// informes - usan descargar para archivos
 export const exportarExcel = (filtros) => descargar(`/anticipos/informe.xlsx${query(filtros)}`);
 export const exportarPdf = (filtros) => descargar(`/anticipos/informe.pdf${query(filtros)}`);
 
-// payload helper
+// payload helper - SIN numero (se genera automático)
 export const aPayload = (a) => ({
   cliente_id: Number(a.cliente_id),
   fecha: a.fecha,
-  numero: a.numero,
   importe: Number(a.importe),
 });

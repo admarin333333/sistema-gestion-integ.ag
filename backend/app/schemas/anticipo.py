@@ -1,8 +1,7 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.anticipo import ESTADOS_ANTICIPO
 from app.schemas.factura import FacturaOut
 
 
@@ -15,31 +14,21 @@ ETIQUETAS_ESTADO = {
 }
 
 
-def _digitos(valor: str) -> str:
-    return "".join(c for c in valor if c.isdigit())
-
-
 class AnticipoBase(BaseModel):
     cliente_id: int
     fecha: date
-    numero: str = Field(max_length=12)
     importe: float = Field(gt=0, description="Importe adelantado en pesos")
-
-    @field_validator("numero")
-    @classmethod
-    def _numero(cls, valor: str) -> str:
-        digitos = _digitos(valor)
-        if not digitos or len(digitos) > 8:
-            raise ValueError("El número de anticipo tiene hasta 8 dígitos (ej.: 00000001)")
-        return digitos.zfill(8)
 
 
 class AnticipoCrear(AnticipoBase):
-    pass
+    """Para crear: el número se genera automáticamente en el service."""
+    numero: str | None = Field(default=None, max_length=8)
 
 
-class AnticipoActualizar(AnticipoBase):
-    pass
+class AnticipoActualizar(BaseModel):
+    """Para actualizar: NO se puede cambiar el número."""
+    fecha: date | None = None
+    importe: float | None = Field(default=None, gt=0)
 
 
 class AnticipoOut(BaseModel):
@@ -55,6 +44,8 @@ class AnticipoOut(BaseModel):
     creado: datetime
     actualizado: datetime | None = None
 
+
+# ------------------------------------------------------------- aplicaciones
 
 class AplicacionAnticipoCrear(BaseModel):
     factura_id: int

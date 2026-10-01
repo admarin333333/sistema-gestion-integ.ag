@@ -24,11 +24,13 @@ _PDF = "application/pdf"
 
 @router.get("", response_model=list[AnticipoOut])
 def listar(
-    cliente_id: int | None = None,
+    cliente_id: int | None = Query(default=None),
+    desde: date | None = Query(default=None),
+    hasta: date | None = Query(default=None),
     db: Session = Depends(get_db),
     user: Usuario = Depends(get_current_user),
 ):
-    return anticipo_service.listar(db, cliente_id=cliente_id)
+    return anticipo_service.listar(db, cliente_id=cliente_id, desde=desde, hasta=hasta)
 
 
 def _alcance(db: Session, cliente_id: int | None, desde, hasta) -> str:
@@ -86,6 +88,25 @@ def informe(
         anticipos, suma, _alcance(db, cliente_id, desde, hasta)
     )
     nombre = f"informe_anticipos_{date.today().isoformat()}.pdf"
+    return Response(
+        content=contenido,
+        media_type=_PDF,
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+    )
+
+
+@router.get("/{anticipo_id}/pdf")
+def pdf_anticipo(
+    anticipo_id: int,
+    db: Session = Depends(get_db),
+    user: Usuario = Depends(get_current_user),
+):
+    """PDF individual de un anticipo."""
+    anticipo = anticipo_service.obtener(db, anticipo_id)
+    contenido = anticipo_service.informe_pdf(
+        [anticipo], anticipo.importe, f"Anticipo {anticipo.numero} - {anticipo.cliente_nombre}"
+    )
+    nombre = f"anticipo_{anticipo.numero}_{date.today().isoformat()}.pdf"
     return Response(
         content=contenido,
         media_type=_PDF,

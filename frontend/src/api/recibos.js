@@ -9,6 +9,11 @@ export const FORMAS = {
   otro: "Otro",
 };
 
+export const ESTADOS = {
+  emitido: "Emitido",
+  anulado: "Anulado",
+};
+
 export const query = (filtros = {}) => {
   const p = new URLSearchParams();
   Object.entries(filtros).forEach(([k, v]) => {
@@ -30,6 +35,12 @@ export const actualizarRecibo = (id, cuerpo) =>
 
 export const eliminarRecibo = (id) => api(`/recibos/${id}`, { method: "DELETE" });
 
+export const anularRecibo = (id) =>
+  api(`/recibos/${id}/anular`, { method: "POST" });
+
+export const reabrirRecibo = (id) =>
+  api(`/recibos/${id}/reabrir`, { method: "POST" });
+
 // aplicaciones
 export const listarAplicaciones = (reciboId) =>
   api(`/recibos/${reciboId}/aplicaciones`);
@@ -40,11 +51,10 @@ export const aplicarRecibo = (reciboId, cuerpo) =>
 export const desaplicarRecibo = (aplicacionId) =>
   api(`/recibos/aplicaciones/${aplicacionId}`, { method: "DELETE" });
 
-// payload helper
+// payload helper - SIN numero (se genera automático)
 export const aPayload = (r) => ({
   cliente_id: Number(r.cliente_id),
   fecha: r.fecha,
-  numero: r.numero,
   importe: Number(r.importe),
   forma_pago: r.forma_pago,
 });

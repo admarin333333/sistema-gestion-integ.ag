@@ -70,6 +70,18 @@ def obtener(db: Session, anticipo_id: int) -> Anticipo:
     return anticipo
 
 
+def _proximo_numero(db: Session) -> str:
+    """Genera el siguiente número correlativo de anticipo."""
+    ultimo = (
+        db.query(Anticipo.numero)
+        .order_by(Anticipo.numero.desc())
+        .first()
+    )
+    if ultimo and ultimo[0].isdigit():
+        return str(int(ultimo[0]) + 1).zfill(8)
+    return "00000001"
+
+
 def _verificar_unico(db: Session, numero: str, excluye: int | None = None) -> None:
     consulta = db.query(Anticipo).filter(Anticipo.numero == numero)
     if excluye:
@@ -79,8 +91,11 @@ def _verificar_unico(db: Session, numero: str, excluye: int | None = None) -> No
 
 
 def crear(db: Session, datos: AnticipoCrear) -> Anticipo:
-    _verificar_unico(db, datos.numero)
-    anticipo = Anticipo(**datos.model_dump())
+    # Generar número correlativo automáticamente
+    numero = _proximo_numero(db)
+    datos_dict = datos.model_dump()
+    datos_dict["numero"] = numero
+    anticipo = Anticipo(**datos_dict)
     db.add(anticipo)
     db.commit()
     db.refresh(anticipo)
@@ -91,16 +106,17 @@ def actualizar(db: Session, anticipo_id: int, datos: AnticipoActualizar) -> Anti
     anticipo = obtener(db, anticipo_id)
     if anticipo.estado == "eliminado":
         raise Rechazo("No se puede modificar un anticipo eliminado", 409)
-    _verificar_unico(db, datos.numero, excluye=anticipo_id)
+    # No permitir cambiar el número
     aplicado = _suma(db, AplicacionAnticipo.anticipo_id == anticipo_id)
-    if aplicado + _E > float(datos.importe):
+    if datos.importe is not None and aplicado + _E > float(datos.importe):
         raise Rechazo(
             f"Ya imputaste ${aplicado:,.2f} de este anticipo: "
             "no podés bajar el importe",
             409,
         )
-    for campo, valor in datos.model_dump().items():
-        setattr(anticipo, campo, valor)
+    for campo, valor in datos.model_dump(exclude_unset=True).items():
+        if campo != "numero":  # Nunca permitir cambiar el número
+            setattr(anticipo, campo, valor)
     anticipo.actualizado = datetime.utcnow()
     db.commit()
     db.refresh(anticipo)
@@ -173,6 +189,8 @@ def aplicar(
     anticipo = obtener(db, anticipo_id)
     if anticipo.estado == "eliminado":
         raise Rechazo("No se puede imputar un anticipo eliminado", 409)
+    if anticipo.estado == "aplicado":
+        raise Rechazo("No se puede imputar: el anticipo ya está totalmente imputado (Aplicado)", 409)
     factura = db.get(Factura, datos.factura_id)
     if factura is None:
         raise Rechazo("No existe esa factura", 404)

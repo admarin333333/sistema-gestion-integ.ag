@@ -23,6 +23,8 @@ FORMAS_PAGO = (
     "otro",
 )
 
+ESTADOS_RECIBO = ("emitido", "anulado")
+
 
 class Recibo(Base):
     __tablename__ = "recibos"
@@ -37,6 +39,9 @@ class Recibo(Base):
     importe: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
     forma_pago: Mapped[str] = mapped_column(
         Enum(*FORMAS_PAGO, name="forma_pago"), nullable=False
+    )
+    estado: Mapped[str] = mapped_column(
+        Enum(*ESTADOS_RECIBO, name="estado_recibo"), nullable=False, default="emitido"
     )
 
     creado: Mapped[datetime] = mapped_column(

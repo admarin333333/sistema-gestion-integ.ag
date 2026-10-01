@@ -12,6 +12,7 @@ from app.models.factura import Factura
 from app.models.recibo import Aplicacion, Recibo
 from app.schemas.recibo import (
     AplicacionCrear,
+    ETIQUETAS_ESTADO,
     ETIQUETAS_FORMA,
     ReciboActualizar,
     ReciboCrear,
@@ -36,6 +37,7 @@ def _condiciones(cliente_id: int | None, desde, hasta) -> list:
 def listar(
     db: Session, cliente_id: int | None = None, desde=None, hasta=None
 ) -> list[Recibo]:
+    """Lista TODOS los recibos (emitidos y anulados) para que se vean en el listado."""
     return (
         db.query(Recibo)
         .filter(*_condiciones(cliente_id, desde, hasta))
@@ -47,10 +49,13 @@ def listar(
 def total(
     db: Session, cliente_id: int | None = None, desde=None, hasta=None
 ) -> float:
-    """Suma de importes — se calcula SIEMPRE con SQL, nunca en el navegador."""
+    """Suma de importes — se calcula SIEMPRE con SQL, nunca en el navegador.
+    Solo suma los emitidos (no los anulados)."""
+    condiciones = _condiciones(cliente_id, desde, hasta)
+    condiciones.append(Recibo.estado == "emitido")
     valor = (
         db.query(func.sum(Recibo.importe))
-        .filter(*_condiciones(cliente_id, desde, hasta))
+        .filter(*condiciones)
         .scalar()
     )
     return float(valor or 0)
@@ -63,6 +68,18 @@ def obtener(db: Session, recibo_id: int) -> Recibo:
     return recibo
 
 
+def _proximo_numero(db: Session) -> str:
+    """Genera el siguiente número correlativo de recibo."""
+    ultimo = (
+        db.query(Recibo.numero)
+        .order_by(Recibo.numero.desc())
+        .first()
+    )
+    if ultimo and ultimo[0].isdigit():
+        return str(int(ultimo[0]) + 1).zfill(8)
+    return "00000001"
+
+
 def _verificar_unico(db: Session, numero: str, excluye: int | None = None) -> None:
     consulta = db.query(Recibo).filter(Recibo.numero == numero)
     if excluye:
@@ -72,8 +89,11 @@ def _verificar_unico(db: Session, numero: str, excluye: int | None = None) -> No
 
 
 def crear(db: Session, datos: ReciboCrear) -> Recibo:
-    _verificar_unico(db, datos.numero)
-    recibo = Recibo(**datos.model_dump())
+    # Generar número correlativo automáticamente
+    numero = _proximo_numero(db)
+    datos_dict = datos.model_dump()
+    datos_dict["numero"] = numero
+    recibo = Recibo(**datos_dict)
     db.add(recibo)
     db.commit()
     db.refresh(recibo)
@@ -82,15 +102,47 @@ def crear(db: Session, datos: ReciboCrear) -> Recibo:
 
 def actualizar(db: Session, recibo_id: int, datos: ReciboActualizar) -> Recibo:
     recibo = obtener(db, recibo_id)
-    _verificar_unico(db, datos.numero, excluye=recibo_id)
+    # No permitir cambiar el número
+    if recibo.estado == "anulado":
+        raise Rechazo("No se puede modificar un recibo anulado", 409)
     aplicado = _suma(db, Aplicacion.recibo_id == recibo_id)
-    if aplicado + _E > float(datos.importe):
+    if datos.importe is not None and aplicado + _E > float(datos.importe):
         raise Rechazo(
             f"Ya aplicaste ${aplicado:,.2f} de este recibo: no podés bajar el importe",
             409,
         )
-    for campo, valor in datos.model_dump().items():
-        setattr(recibo, campo, valor)
+    for campo, valor in datos.model_dump(exclude_unset=True).items():
+        if campo != "numero":  # Nunca permitir cambiar el número
+            setattr(recibo, campo, valor)
+    recibo.actualizado = datetime.utcnow()
+    db.commit()
+    db.refresh(recibo)
+    return recibo
+
+
+def anular(db: Session, recibo_id: int) -> Recibo:
+    """Solo admin (el rol se controla en el router)."""
+    recibo = obtener(db, recibo_id)
+    if recibo.estado == "anulado":
+        raise Rechazo("El recibo ya está anulado", 409)
+    # Desaplicar todas las aplicaciones antes de anular
+    aplicaciones = db.query(Aplicacion).filter(Aplicacion.recibo_id == recibo_id).all()
+    for app in aplicaciones:
+        factura_id = app.factura_id
+        db.delete(app)
+        factura_service.recalcular_estado(db, factura_id)
+    recibo.estado = "anulado"
+    recibo.actualizado = datetime.utcnow()
+    db.commit()
+    db.refresh(recibo)
+    return recibo
+
+
+def reabrir(db: Session, recibo_id: int) -> Recibo:
+    recibo = obtener(db, recibo_id)
+    if recibo.estado == "emitido":
+        raise Rechazo("El recibo ya está emitido", 409)
+    recibo.estado = "emitido"
     recibo.actualizado = datetime.utcnow()
     db.commit()
     db.refresh(recibo)
@@ -99,6 +151,8 @@ def actualizar(db: Session, recibo_id: int, datos: ReciboActualizar) -> Recibo:
 
 def eliminar(db: Session, recibo_id: int) -> None:
     recibo = obtener(db, recibo_id)
+    if recibo.estado == "anulado":
+        raise Rechazo("No se puede eliminar un recibo anulado. Reabrílo primero.", 409)
     if _suma(db, Aplicacion.recibo_id == recibo_id) > 0:
         raise Rechazo(
             "No se puede eliminar: el recibo ya está aplicado a facturas. "

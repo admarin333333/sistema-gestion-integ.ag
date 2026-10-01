@@ -2,7 +2,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models.recibo import FORMAS_PAGO
+from app.models.recibo import FORMAS_PAGO, ESTADOS_RECIBO
 from app.schemas.factura import FacturaOut
 
 ETIQUETAS_FORMA = {
@@ -14,6 +14,11 @@ ETIQUETAS_FORMA = {
     "otro": "Otro",
 }
 
+ETIQUETAS_ESTADO = {
+    "emitido": "Emitido",
+    "anulado": "Anulado",
+}
+
 
 def _digitos(valor: str) -> str:
     return "".join(c for c in valor if c.isdigit())
@@ -22,7 +27,6 @@ def _digitos(valor: str) -> str:
 class ReciboBase(BaseModel):
     cliente_id: int
     fecha: date
-    numero: str = Field(max_length=12)
     importe: float = Field(gt=0, description="Importe en pesos")
     forma_pago: str
 
@@ -33,21 +37,24 @@ class ReciboBase(BaseModel):
             raise ValueError("Forma de pago no válida")
         return valor
 
-    @field_validator("numero")
-    @classmethod
-    def _numero(cls, valor: str) -> str:
-        digitos = _digitos(valor)
-        if not digitos or len(digitos) > 8:
-            raise ValueError("El número de recibo tiene hasta 8 dígitos (ej.: 00000001)")
-        return digitos.zfill(8)
-
 
 class ReciboCrear(ReciboBase):
-    pass
+    """Para crear: el número se genera automáticamente en el service."""
+    numero: str | None = Field(default=None, max_length=8)
 
 
-class ReciboActualizar(ReciboBase):
-    pass
+class ReciboActualizar(BaseModel):
+    """Para actualizar: NO se puede cambiar el número."""
+    fecha: date | None = None
+    importe: float | None = Field(default=None, gt=0)
+    forma_pago: str | None = None
+
+    @field_validator("forma_pago")
+    @classmethod
+    def _forma(cls, valor: str) -> str:
+        if valor and valor not in FORMAS_PAGO:
+            raise ValueError("Forma de pago no válida")
+        return valor
 
 
 class ReciboOut(BaseModel):
@@ -60,6 +67,7 @@ class ReciboOut(BaseModel):
     numero: str
     importe: float
     forma_pago: str
+    estado: str
     creado: datetime
     actualizado: datetime | None = None
 
