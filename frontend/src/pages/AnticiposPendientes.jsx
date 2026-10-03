@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { listarClientes } from "../api/clientes.js";
+import BuscadorCliente from "../components/BuscadorCliente.jsx";
 import {
   obtenerAnticiposPendientes,
   exportarAnticiposPendientes,
 } from "../api/informes.js";
 import { NOMBRE_ESTUDIO, fecha, pesos } from "../formato.js";
 
-export default function AnticiposPendientes({ ir }) {
+export default function AnticiposPendientes() {
+  const navigate = useNavigate();
   const [clientes, setClientes] = useState([]);
   const [clienteId, setClienteId] = useState("");
   const [filtros, setFiltros] = useState({ desde: "", hasta: "" });
@@ -20,13 +23,16 @@ export default function AnticiposPendientes({ ir }) {
       .catch(() => setClientes([]));
   }, []);
 
-  const cargar = async () => {
-    if (!clienteId) return;
+  // `idQuePedir` existe porque al elegir en el buscador el `setClienteId` todavía
+  // no se aplicó: si `cargar` leyera el `clienteId` del cierre, pediría el
+  // cliente ANTERIOR.
+  const cargar = async (idQuePedir = clienteId) => {
+    if (!idQuePedir) return;
     setCargando(true);
     setError("");
     try {
       const data = await obtenerAnticiposPendientes({
-        cliente_id: Number(clienteId),
+        cliente_id: Number(idQuePedir),
         desde: filtros.desde || undefined,
         hasta: filtros.hasta || undefined,
       });
@@ -88,18 +94,17 @@ export default function AnticiposPendientes({ ir }) {
       </p>
 
       <form className="buscador" onSubmit={(e) => { e.preventDefault(); if (clienteId) cargar(); }}>
-        <select
-          value={clienteId}
-          onChange={(e) => { setClienteId(e.target.value); cargar(); }}
-          aria-label="Cliente"
-        >
-          <option value="">— Seleccionar cliente —</option>
-          {clientes.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.nombre_completo}
-            </option>
-          ))}
-        </select>
+        {/* Buscador y no lista desplegada: se escribe y filtra al toque. */}
+        <BuscadorCliente
+          clientes={clientes}
+          seleccion={clienteSel || null}
+          onElegir={(c) => {
+            setClienteId(c ? String(c.id) : "");
+            if (c) cargar(String(c.id));
+          }}
+          tipo_registro="cliente"
+          etiqueta="Cliente"
+        />
 
         <label className="campo">
           <span>Desde</span>
@@ -121,7 +126,7 @@ export default function AnticiposPendientes({ ir }) {
             Descargar Excel
           </button>
           <button className="btn btn-sm fantasma" onClick={() => window.print()}>Imprimir</button>
-          <button className="btn btn-sm fantasma" onClick={() => ir("cliente-ficha", clienteId)}>Ver ficha</button>
+          <button className="btn btn-sm fantasma" onClick={() => navigate(`/cliente-ficha/${clienteId}`)}>Ver ficha</button>
         </div>
       )}
 

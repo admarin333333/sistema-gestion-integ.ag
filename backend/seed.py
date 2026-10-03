@@ -7,6 +7,11 @@ Ejecutar desde la carpeta backend/:
 
 from app.core.security import hash_password
 from app.database import Base, SessionLocal, engine
+from app.models.alicuota import AlicuotaIva
+from app.models.centrocosto import CentroCosto
+from app.models.compra import Compra
+from app.models.variante import Variante
+from app.models.tipogasto import TipoGasto
 from app.models.anticipo import Anticipo, AplicacionAnticipo
 from app.models.cliente import Cliente
 from app.models.factura import Factura
@@ -139,6 +144,36 @@ LOCALIDADES = [
 ]
 
 
+ALICUOTAS_IVA = [
+    ("IVA 10,5%", 10.5),
+    ("IVA 21%", 21.0),
+    ("IVA 27%", 27.0),
+]
+
+CENTROS_COSTOS = [
+    "Comercialización",
+    "Administración",
+]
+
+TIPOS_GASTO = [
+    ("Servicio limpieza", "Administración"),
+    ("Servicio legal", "Administración"),
+    ("Pago luz", "Administración"),
+    ("Pago internet-telefono", "Administración"),
+    ("Mantenimiento", "Administración"),
+    ("Insumos librería", "Administración"),
+    ("Publicidad", "Comercialización"),
+    ("Empleado", "Administración"),
+    ("Impuestos y tasa", "Administración"),
+    ("Cursos", "Administración"),
+    ("Gastos bancario", "Administración"),
+    ("Cafetería", "Administración"),
+    ("Gastos varios", "Administración"),
+    ("Intereses", "Administración"),
+    ("Combustible", "Comercialización"),
+]
+
+
 def main() -> None:
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
@@ -175,6 +210,37 @@ def main() -> None:
                 continue
             db.add(Localidad(codigo_postal=cp, nombre=nombre, provincia="Córdoba"))
             print(f"  + localidad   {cp} {nombre}")
+
+        for nombre, porcentaje in ALICUOTAS_IVA:
+            existe = db.query(AlicuotaIva).filter(AlicuotaIva.nombre == nombre).first()
+            if existe:
+                continue
+            db.add(AlicuotaIva(nombre=nombre, porcentaje=porcentaje, activo=True))
+            print(f"  + alicuota    {nombre}")
+
+        for nombre in CENTROS_COSTOS:
+            existe = db.query(CentroCosto).filter(CentroCosto.nombre == nombre).first()
+            if existe:
+                continue
+            db.add(CentroCosto(nombre=nombre, activo=True))
+            print(f"  + centro      {nombre}")
+
+        centros = {
+            c.nombre: c.id
+            for c in db.query(CentroCosto).all()
+        }
+        for nombre, centro in TIPOS_GASTO:
+            existe = db.query(TipoGasto).filter(TipoGasto.nombre == nombre).first()
+            if existe:
+                continue
+            db.add(
+                TipoGasto(
+                    nombre=nombre,
+                    centro_costo_id=centros[centro],
+                    activo=True,
+                )
+            )
+            print(f"  + tipo gasto  {nombre} ({centro})")
 
         db.commit()
         print("\nListo. Tablas, usuarios, servicios y localidades creados.")

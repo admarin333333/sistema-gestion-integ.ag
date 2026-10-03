@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     Date,
@@ -30,6 +31,10 @@ TIPOS_COMPROBANTE = (
 
 CONDICIONES_VENTA = ("contado", "cta_corriente_15", "cta_corriente_30")
 
+# Solo las notas de CRÉDITO. Son las que restan lo que el cliente debe: la nota
+# de débito hace lo contrario (aumenta lo que debe), así que va aparte.
+TIPOS_NOTA_CREDITO = ("nota_credito_a", "nota_credito_b", "nota_credito_c")
+
 # pendiente · parcial · pagada lo recalcula el backend con SUM cuando se
 # aplican recibos. "anulada" la pone únicamente el admin.
 ESTADOS = ("pendiente", "parcial", "pagada", "anulada")
@@ -42,6 +47,15 @@ class Factura(Base):
     cliente_id: Mapped[int] = mapped_column(
         ForeignKey("clientes.id"), nullable=False, index=True
     )
+    # Si esta factura es una NOTA (de crédito o de débito), la factura a la que
+    # corrige. Va en la misma tabla con una FK a sí misma.
+    #
+    # Por qué: una nota de crédito sin saber a qué factura se descuenta es un
+    # papel suelto. El contador necesita saber si el cliente ya pagó lo que se
+    # le está descontando, y eso solo se responde mirando la factura original.
+    factura_relacionada_id: Mapped[int | None] = mapped_column(
+        ForeignKey("facturas.id", name="fk_factura_relacionada"), nullable=True
+    )
 
     fecha: Mapped[date] = mapped_column(Date, nullable=False)
     tipo_comprobante: Mapped[str] = mapped_column(
@@ -50,6 +64,8 @@ class Factura(Base):
     punto_venta: Mapped[str] = mapped_column(String(4), nullable=False)
     numero: Mapped[str] = mapped_column(String(8), nullable=False)
     concepto: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # Total facturado. **No se toca**: sigue siendo el importe que usan los
+    # recibos, el estado de cuenta y los informes.
     importe: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
     fecha_vencimiento: Mapped[date | None] = mapped_column(Date, nullable=True)
     condicion_venta: Mapped[str] = mapped_column(
@@ -59,6 +75,23 @@ class Factura(Base):
     )
     estado: Mapped[str] = mapped_column(
         Enum(*ESTADOS, name="estado_factura"), nullable=False, default="pendiente"
+    )
+
+    # --- Para el asiento contable automático -------------------------
+    # Qué cuenta de ingresos va en el Haber: ventas de artículos (4.1) o
+    # ingresos por servicios (4.2).
+    tipo_operacion: Mapped[str] = mapped_column(
+        String(12), nullable=False, default="SERVICIOS"
+    )
+
+    # Desglose del IVA. La regla es `importe = neto + iva`. Si vienen los dos en
+    # NULL, el asiento va con el importe entero a ingresos y avisa.
+    neto: Mapped[Decimal | None] = mapped_column(Numeric(16, 4), nullable=True)
+    iva: Mapped[Decimal | None] = mapped_column(Numeric(16, 4), nullable=True)
+    alicuota_iva_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # La alícuota que se aplicó (21.00), aunque después cambie la tabla.
+    alicuota_iva_aplicada: Mapped[Decimal | None] = mapped_column(
+        Numeric(6, 2), nullable=True
     )
 
     # ARCA: opcionales. Hoy se cargan a mano si se tienen.

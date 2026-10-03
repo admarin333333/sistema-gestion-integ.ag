@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 import { getKPIs, getAlertas, getProximasVencimientos } from "../api/dashboard.js";
+import { exportarProveedores, exportarCompras, exportarCentros, exportarResultados } from "../api/informes.js";
+import Periodo from "../components/Periodo.jsx";
+import Variantes from "../components/Variantes.jsx";
 import { pesos, fecha } from "../formato.js";
 
 const FASES = [
@@ -33,6 +36,7 @@ export default function Dashboard() {
   const [proximas, setProximas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
+  const [filtros, setFiltros] = useState({ desde: "", hasta: "" });
 
   useEffect(() => {
     const cargar = async () => {
@@ -56,7 +60,8 @@ export default function Dashboard() {
     cargar();
   }, []);
 
-  if (cargando) return <p className="nota">Cargando dashboard…</p>;
+  // Mientras carga: el layout completo con placeholders — sin pantalla en
+  // blanco, así el LCP pinta apenas arranca React (mejora de rendimiento).
   if (error) return <p className="error">Error: {error}</p>;
 
   const CHIP_STYLE = {
@@ -77,29 +82,83 @@ export default function Dashboard() {
       {/* KPIs */}
       <div className="kpis">
         <article className="kpi">
-          <b>{kpis.clientes_activos}</b>
+          <b>{cargando ? "…" : kpis.clientes_activos}</b>
           <span>Clientes activos</span>
         </article>
         <article className="kpi">
-          <b>{pesos(kpis.facturado_mes)}</b>
+          <b>{cargando ? "…" : pesos(kpis.facturado_mes)}</b>
           <span>Facturado este mes</span>
         </article>
         <article className="kpi">
-          <b>{pesos(kpis.cobrado_mes)}</b>
+          <b>{cargando ? "…" : pesos(kpis.cobrado_mes)}</b>
           <span>Cobrado este mes</span>
         </article>
         <article className="kpi">
-          <b>{pesos(kpis.pendiente_mes)}</b>
+          <b>{cargando ? "…" : pesos(kpis.pendiente_mes)}</b>
           <span>Pendiente este mes</span>
         </article>
         <article className="kpi">
-          <b>{kpis.facturas_vencidas}</b>
+          <b>{cargando ? "…" : kpis.facturas_vencidas}</b>
           <span>Facturas vencidas</span>
         </article>
       </div>
 
+      {/* Informes en Excel */}
+      <div style={{ marginTop: "2rem" }}>
+        <h2>🧾 Informes</h2>
+        <p className="nota">
+          Elegí el período y descargá el Excel. Si dejás las fechas vacías, se
+          toma todo.
+        </p>
+        <form
+          className="buscador"
+          onSubmit={(e) => {
+            e.preventDefault();
+          }}
+        >
+          <Periodo filtros={filtros} setFiltros={setFiltros} />
+          <button
+            className="btn btn-sm"
+            type="button"
+            onClick={() => exportarProveedores(filtros)}
+          >
+            Proveedores
+          </button>
+          <button
+            className="btn btn-sm"
+            type="button"
+            onClick={() => exportarCompras(filtros)}
+          >
+            Compras
+          </button>
+          <button
+            className="btn btn-sm"
+            type="button"
+            onClick={() => exportarCentros(filtros)}
+          >
+            Centro de costos
+          </button>
+          <button
+            className="btn btn-sm"
+            type="button"
+            onClick={() => exportarResultados(filtros)}
+          >
+            Resultados
+          </button>
+        </form>
+        <Variantes pantalla="dashboard" filtros={filtros} setFiltros={setFiltros} />
+      </div>
+
       {/* Alertas de vencimiento */}
-      {alertas.length > 0 && (
+      {cargando && (
+        <div style={{ marginTop: "2rem" }}>
+          <h2>⚠️ Alertas de vencimiento (30 días)</h2>
+          <div className="tabla-envoltura" style={{ minHeight: "9rem" }}>
+            <p className="nota">Cargando alertas…</p>
+          </div>
+        </div>
+      )}
+      {!cargando && alertas.length > 0 && (
         <div style={{ marginTop: "2rem" }}>
           <h2>⚠️ Alertas de vencimiento (30 días)</h2>
           <div className="tabla-envoltura">
@@ -134,7 +193,15 @@ export default function Dashboard() {
       )}
 
       {/* Próximos vencimientos (7 días) */}
-      {proximas.length > 0 && (
+      {cargando && (
+        <div style={{ marginTop: "2rem" }}>
+          <h2>📅 Próximos vencimientos (7 días)</h2>
+          <div className="tabla-envoltura" style={{ minHeight: "9rem" }}>
+            <p className="nota">Cargando vencimientos…</p>
+          </div>
+        </div>
+      )}
+      {!cargando && proximas.length > 0 && (
         <div style={{ marginTop: "2rem" }}>
           <h2>📅 Próximos vencimientos (7 días)</h2>
           <div className="tabla-envoltura">

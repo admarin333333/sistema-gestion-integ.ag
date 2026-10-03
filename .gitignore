@@ -1,6 +1,19 @@
 # Secrets
 .env
 
+# Respaldos de la base de datos — NUNCA a GitHub.
+#
+# Son volcados completos de la base CON datos reales: CUITs, DNIs, nombres,
+# teléfonos, emails, importes y hashes de contraseñas. Con 20 copias de la base
+# en `tests/` (una por corrida de pruebas), subirlos filtra todo eso.
+#
+# Los respaldos son para restaurar en la máquina, no para versionar. Si alguna
+# vez hay que guardar un .sql de verdad en el repo (un esquema, un seed), hay que
+# sacarlo de acá con una excepción, por ejemplo:
+#   !esquema.sql
+*.sql
+backend/respaldos/
+
 # Python
 __pycache__/
 *.py[cod]

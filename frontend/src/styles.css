@@ -26,6 +26,7 @@
   --grad: linear-gradient(120deg, #2f5fe0 0%, #5a3fe6 100%); /* blanco 5.5:1 */
 
   --ok: #34d399;
+  --ok-bg: rgba(52, 211, 153, 0.13);
   --err: #ffb4b4;
   --err-bg: rgba(248, 113, 113, 0.13);
 
@@ -310,6 +311,17 @@ p {
   margin: 1.2rem 0 0;
 }
 
+/* Aviso de "salió bien", al twin de .error. */
+.ok {
+  background: var(--ok-bg);
+  color: var(--ok);
+  border-left: 3px solid var(--ok);
+  font-size: 0.87rem;
+  font-weight: 500;
+  padding: 0.7rem 0.9rem;
+  margin: 0 0 1rem;
+}
+
 .ayuda code {
   background: rgba(79, 140, 255, 0.14);
   color: var(--accent);
@@ -411,6 +423,269 @@ p {
   margin-left: 0.5rem;
   color: var(--accent-2);
   font-weight: 600;
+}
+
+/* ---------- menú con grupos (Contabilidad) ----------
+   El grupo se dibuja como un botón con los mismos bordes que los otros
+   ítems, y los submenú cuelgan debajo. `.item` ya trae el borde, así que el
+   título del grupo no necesita nada extra salvo poder apretarse. */
+.grupo-menu {
+  position: relative;
+}
+
+/* La fila del menú tiene que dejar lugar al panel: si no, el primer ítem del
+   desplegable queda pegado al borde de arriba del contenido. */
+
+.grupo-titulo {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  background: var(--surface);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.grupo-titulo:hover,
+.grupo-titulo.abierto {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.grupo-titulo.activo {
+  background: var(--grad);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(47, 95, 224, 0.35);
+}
+
+.grupo-titulo .flecha {
+  font-style: normal;
+  margin-left: 0.5rem;
+  opacity: 0.7;
+  font-size: 0.7rem;
+}
+
+/* El PANEL del desplegable: cae debajo de toda la fila del menú, nunca encima
+   de los otros botones. Antes `.grupo-items` era `position: absolute` colgado
+   del botón, y como la fila es `flex-wrap`, tapaba lo que tenía al lado.
+
+   Solo hay UN panel a la vez (ver `abiertoManual` en `Layout.jsx`). */
+.grupo-panel {
+  position: relative;
+  z-index: 70;
+  margin-top: 0.45rem;
+  animation: grupo-aparece 0.14s ease-out;
+}
+
+@keyframes grupo-aparece {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* El nombre del grupo arriba del panel: si no, no se sabe de qué menú saiu.
+   Sale apagado y en versalitas, como los títulos de las barras. */
+.grupo-panel-titulo {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+  padding: 0 0 0.35rem 0.2rem;
+}
+
+.grupo-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  width: max-content;
+  min-width: 17rem;
+  max-width: 30rem;
+  padding: 0.35rem;
+  /* Un desplegable tiene que ser opaco: con `var(--surface)` (blanco al 4%)
+     se veía el contenido de abajo atravesado. */
+  background: linear-gradient(160deg, #16213b, #111b30);
+  border: 1px solid var(--line);
+  box-shadow:
+    0 20px 48px rgba(3, 7, 18, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+}
+
+.grupo-items .item {
+  white-space: nowrap;
+  cursor: pointer;
+  border-color: transparent;
+  /* Los ítems del desplegable no usan `var(--surface)` de fondo (que es
+     transparente): usan el del panel, para que no se vea nada detrás. */
+  background: transparent;
+  border-radius: 6px;
+}
+
+/* La línea de arriba del ítem activo, para que se vea cuál es sin depender solo
+   del color. */
+.grupo-items .item.activo {
+  position: relative;
+  background: rgba(79, 140, 255, 0.14);
+}
+
+.grupo-items .item.activo::before {
+  content: "";
+  position: absolute;
+  left: 0.35rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 1.05em;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.grupo-items .item:hover {
+  background: rgba(79, 140, 255, 0.12);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Los ítems del desplegable que están activos (la página en la que estás)
+   van con el degradé como los del menú. */
+.grupo-items .item.activo {
+  border-color: transparent;
+}
+
+/* ---------- período de trabajo ----------
+   Va arriba, en la barra, y no dentro de cada pantalla: es una decisión del
+   contador, no de una pantalla. Si estuviera en cada una, sería fácil estar
+   mirando octubre y cargar una factura de septiembre. */
+.periodo-actual {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 0 0;
+}
+
+.campo-periodo {
+  min-width: 15rem;
+}
+
+.campo-periodo select {
+  min-width: 13rem;
+}
+
+.periodo-cerrado {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: #ffb4b4;
+  padding-bottom: 0.55rem;
+  max-width: 30rem;
+}
+
+/* Una fila de período cerrado se ve apagada en la tabla de Configuración. */
+.fila-apagada td {
+  opacity: 0.62;
+}
+
+/* ---------- deuda vencida ----------
+   Lo vencido tiene que verse de un vistazo sin leer la columna: es lo que hay
+   que ir a cobrar. Fila tinted + el número de días en rojo. */
+.fila-vencida td {
+  background: rgba(220, 80, 80, 0.07);
+}
+
+.fila-vencida:hover td {
+  background: rgba(220, 80, 80, 0.12);
+}
+
+.vencida {
+  color: #ff8f8f;
+}
+
+.resumen-deuda {
+  display: flex;
+  gap: 2.5rem;
+  flex-wrap: wrap;
+  margin-top: 1.2rem;
+}
+
+.resumen-deuda > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.resumen-deuda span {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+.resumen-deuda b {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-family: var(--mono);
+}
+
+.resumen-deuda small {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+/* El bloque de "Vencido" se pinta solo si hay algo vencido: con la base en
+   cero la pantalla estaría gritando una alarma que no existe. */
+.resumen-deuda .alerta b {
+  color: #ff8f8f;
+}
+
+/* ---------- índice A–Z ----------
+   Solo aparece cuando la lista está ordenada por apellido o razón social (con
+   otro orden las letras salen mezcladas y el índice mentiría). Se muestra a
+   partir de 12 filas: con pocos clientes sobra. */
+.indice-az {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  margin: 0 0 0.6rem;
+}
+
+.indice-az button {
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  font-weight: 600;
+  min-width: 1.9rem;
+  padding: 0.2rem 0.3rem;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.indice-az button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Las letras que no existen en el listado: se ven, pero no se pueden apretar.
+   Ocultarlas delaría que la lista está incompleta. */
+.indice-az button:disabled,
+.indice-az button.vacio {
+  opacity: 0.28;
+  cursor: default;
 }
 
 /* ---------- contenido ---------- */
@@ -558,6 +833,152 @@ main {
   overflow-x: auto;
   box-shadow: inset 0 0 0 1px var(--line);
   background: rgba(13, 21, 38, 0.75);
+}
+
+/* --- informe por centro de costos ---
+   Cada centro es un bloque: el título lleva el código, el nombre y SU TOTAL,
+   bien grande y a la derecha. El contador compara los tres centros de un
+   vistazo sin sumar nada. */
+.centro-costos {
+  margin-top: 2.2rem;
+}
+.centro-titulo {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.45rem;
+}
+.centro-titulo .mono {
+  color: var(--accent-3, #4f8cff);
+  font-size: 0.95rem;
+}
+.centro-total {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-2, #7bd88f);
+}
+.centro-general {
+  margin-top: 2rem;
+  padding-top: 0.8rem;
+  border-top: 2px solid var(--line);
+}
+
+/* La fila de subtotal de un grupo (Total Administración, Total Publicidad…):
+   apenas un poco más marcada que el resto, para que el ojo encuentre dónde
+   termina cada grupo sin gritar. */
+.fila-subtotal td {
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+
+/* Un campo que ocupa toda la fila del formulario. Para los selectores largos
+   (como la cuenta de gasto del plan, agrupada por centro). */
+.campo-ancho {
+  grid-column: 1 / -1;
+}
+
+/* Grupo de botones chiquitos (los atajos de período del filtro de fechas). */
+.grupo-botones {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+/* Listados largos: la tabla no crece para siempre, scrollea dentro de su caja.
+   Con 300 recibos, una tabla de 8.000 px de alto obliga a scrollear la página
+   entera y uno se pierde: no se ve la fila ni el filtro a la vez.
+   El `thead` queda pegado arriba (sticky) para que siempre se sepa qué
+   columna se está mirando. */
+/* `.tabla-scroll`: la tabla en una caja de altura fija, con su propio scroll y
+   el encabezado clavado.
+
+   OJO: `max-height` es lo que hace esta clase. Es lo que el contador pidió
+   ("ponelo que haga scroll como en los recibos") y el 02/10/2026 lo saqué por
+   probar otra cosa y rompí el scroll de todas las pantallas de golpe. Va acá.
+
+   El `62vh` deja ver la tabla entera en una pantalla normal sin que haya que
+   scrollear mucho. */
+.tabla-scroll {
+  max-height: 62vh;
+  overflow-y: auto;
+  overflow-x: auto;
+  box-shadow: inset 0 0 0 1px var(--line);
+  background: rgba(13, 21, 38, 0.75);
+  /* La barra de scroll del navegador es invisible sobre fondo oscuro si no se
+     le da un color propio. */
+  scrollbar-color: var(--accent-3, #4f8cff) rgba(13, 21, 38, 0.9);
+  scrollbar-width: thin;
+}
+.tabla-scroll::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+.tabla-scroll::-webkit-scrollbar-track {
+  background: rgba(13, 21, 38, 0.9);
+}
+.tabla-scroll::-webkit-scrollbar-thumb {
+  background: var(--accent-3, #4f8cff);
+  border-radius: 6px;
+  border: 3px solid rgba(13, 21, 38, 0.9);
+}
+.tabla-scroll thead th {
+  position: sticky;
+  /* `top: 0` porque el scroll es el de la caja, no el de la página: el
+     encabezado se pega al borde de arriba de la tabla mientras se recorre. */
+  top: 0;
+  z-index: 2;
+  background: var(--bg-3, #16203a);
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+.tabla-scroll tfoot td,
+.tabla-scroll tfoot th {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: var(--bg-3, #16203a);
+}
+
+/* ---------- encabezados que ordenan ----------
+   En las tablas con scroll (clientes, proveedores) el título de la columna
+   ordena. Se marca con la manito del mouse para que el contador sepa que se
+   puede apretar, y la columna activa se pinta de otro color con la flecha. */
+.tabla-scroll thead th[title] {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.tabla-scroll thead th[title]:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.tabla-scroll thead th.orden-activo {
+  color: var(--accent);
+}
+.flecha-orden {
+  margin-left: 0.4rem;
+  font-size: 0.72rem;
+  color: var(--accent);
+}
+
+/* ---------- fila de total ----------
+   Va dentro del `tbody` y no en un `<tfoot>` porque el `tfoot` con
+   `position: sticky` en esta tabla no se dejaba pegar abajo en Chrome. Con el
+   total como última fila del `tbody` el resultado es el mismo y anda en todos
+   los navegadores. */
+.tabla-scroll tbody .fila-total td {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: var(--bg-3, #16203a);
+  box-shadow: inset 0 1px 0 var(--line);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text);
+  padding: 0.7rem 0.9rem;
 }
 
 .tabla {
@@ -1067,6 +1488,205 @@ main {
   color: var(--text);
 }
 
+/* Buscador de cliente con desplegable (selector de estado de cuenta) */
+.cliente-buscador {
+  position: relative;
+}
+
+.cliente-buscador input {
+  min-width: 17rem;
+}
+
+.cliente-buscador .opciones {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 0.3rem);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 0.3rem;
+  list-style: none;
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  max-height: 15rem;
+  overflow-y: auto;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
+}
+
+.cliente-buscador .opciones li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.92rem;
+}
+
+.cliente-buscador .opciones li:hover {
+  background: var(--surface);
+}
+
+.cliente-buscador .opciones li.vacio {
+  cursor: default;
+}
+
+.cliente-buscador .opciones li small {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* ---------------- Balance RT54 (estados contables) ---------------- */
+.eecc-estado {
+  align-self: center;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent-2);
+}
+
+.eecc-estado.ok {
+  color: var(--accent);
+}
+
+.eecc-subtitulo {
+  margin: 1.2rem 0 0.6rem;
+}
+
+.eecc-par {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.2rem;
+}
+
+.eecc-tabla input {
+  width: 8.5rem;
+  max-width: 100%;
+}
+
+.eecc-titulo td {
+  font-weight: 700;
+  background: var(--surface);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+}
+
+.eecc-total td {
+  font-weight: 700;
+  border-top: 1px solid var(--line);
+}
+
+.eecc-nota {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.eecc-eepn input {
+  width: 7rem;
+}
+
+.eecc-notas {
+  max-width: 62rem;
+}
+
+.eecc-notas-seccion {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  margin-bottom: 0.6rem;
+}
+
+.eecc-notas-seccion summary {
+  cursor: pointer;
+  padding: 0.65rem 0.9rem;
+  font-weight: 700;
+  font-size: 0.82rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.eecc-notas-seccion[open] summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.eecc-notas-nota {
+  display: block;
+  padding: 0.85rem 0.9rem 0.4rem;
+}
+
+.eecc-notas-nota textarea {
+  min-height: 90px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+/* Cuadros de composición de las notas: planillita con importes a mano y
+   los Subtotal/Total ya calculados por el backend. */
+.eecc-nota-bloque {
+  padding-bottom: 0.7rem;
+}
+
+.eecc-cuadro {
+  border-collapse: collapse;
+  width: calc(100% - 1.8rem);
+  margin: 0.15rem 0.9rem 0.4rem;
+  font-size: 0.88rem;
+}
+
+.eecc-cuadro th,
+.eecc-cuadro td {
+  border: 1px solid var(--line);
+  padding: 0.22rem 0.45rem;
+}
+
+.eecc-cuadro thead th {
+  background: var(--bg-3);
+  text-align: center;
+  font-size: 0.78rem;
+  letter-spacing: 0.03em;
+}
+
+.eecc-cuadro tbody th[scope="row"] {
+  font-weight: 400;
+  text-align: left;
+  background: transparent;
+  max-width: 24rem;
+}
+
+.eecc-cuadro input {
+  /* Ocupa la celda como en Excel: el número a la derecha, igual que el
+     Total/Subtotal de abajo (si el input fuera más chico, se desalinean). */
+  width: 100%;
+  box-sizing: border-box;
+  text-align: right;
+}
+
+.eecc-capital input[type="text"] {
+  /* El tipo de acción ("Ordinarias") se lee de izquierda a derecha. */
+  text-align: left;
+}
+
+.eecc-cuadro-total th,
+.eecc-cuadro-total td {
+  font-weight: 700;
+  background: var(--bg-2);
+}
+
+.eecc-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+@media (max-width: 900px) {
+  .eecc-par {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media print {
   .buscador {
     display: none !important;
@@ -1083,4 +1703,546 @@ main {
     letter-spacing: 0.06em;
     color: #000;
   }
+}
+
+/* ================================================================
+   Vencimientos: cascada año -> mes de Configuración
+   ================================================================ */
+.arbol-vencimientos {
+  margin: 1.2rem 0 2rem;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+/* Cada año es una fila que se abre y se cierra. */
+.arbol-fila {
+  display: flex;
+  align-items: baseline;
+  gap: 0.8rem;
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  background: var(--bg-2);
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.arbol-fila:hover {
+  background: var(--bg-3);
+}
+.arbol-fila.abierta {
+  background: var(--bg-3);
+  font-weight: 600;
+}
+.arbol-flecha {
+  display: inline-block;
+  width: 1rem;
+  color: var(--muted, #7d8db0);
+}
+
+/* La fecha de última actualización va a la derecha, siempre visible. */
+.arbol-fila .fecha-actualizacion {
+  margin-left: auto;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  opacity: 0.85;
+}
+
+/* Al abrir un año aparece el menú del mes. */
+.arbol-mes {
+  padding: 1rem 1.2rem 0.4rem 2.4rem;
+  background: var(--bg-3);
+  border-bottom: 1px solid var(--line);
+}
+.arbol-mes .campo {
+  max-width: 16rem;
+}
+
+/* La grilla del mes elegido. */
+.arbol-grilla {
+  padding: 0.4rem 0 0 0.6rem;
+}
+.arbol-grilla .panel {
+  background: rgba(7, 11, 20, 0.55);
+}
+
+.arbol-nuevo-mes {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.8rem;
+  padding: 0.9rem 1.2rem;
+  border-top: 1px dashed var(--line);
+  background: var(--bg-2);
+}
+
+/* Catálogo de conceptos */
+.catalogo-concepts {
+  margin-top: 2rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--line);
+}
+.catalogo-concepts h4 {
+  margin: 0 0 0.3rem;
+}
+/* Fila de un concepto apagado: se ve más apagada, pero no desaparece. */
+.catalogo-concepts tr.apagado {
+  opacity: 0.55;
+}
+
+/* Aviso de guardado y contador de celdas (los usa la grilla) */
+.aviso-guardado {
+  padding: 0.6rem 0.8rem;
+  margin: 0.6rem 0;
+  border-left: 3px solid #2e7d32;
+  background: rgba(46, 125, 50, 0.14);
+  color: #a5d6a7;
+}
+.contador-celdas {
+  margin-left: auto;
+}
+
+/* Aviso de CUIT con dígito verificador que no cierra: informa, no bloquea. */
+.aviso-cuit {
+  display: inline-block;
+  margin-top: 0.2rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 3px;
+  background: rgba(255, 193, 7, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(255, 193, 7, 0.45);
+  color: #ffd54f;
+  font-family: inherit;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+/* ================================================================
+   Plan de cuentas: árbol
+   ================================================================ */
+.pc-arbol {
+  margin: 1rem 0;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+/* Una cuenta = una fila. */
+.pc-fila {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.35rem 0.7rem 0.35rem 0;
+  border-bottom: 1px solid var(--line);
+}
+/* Imputable = hoja, la que recibe movimientos. */
+.pc-fila.imputable {
+  background: rgba(255, 255, 255, 0.03);
+}
+/* Agrupador: sin movimientos propios, solo agrupa. */
+.pc-fila.grupo {
+  background: var(--bg-3);
+}
+.pc-fila.apagada {
+  opacity: 0.5;
+}
+.pc-fila:hover {
+  background: rgba(79, 140, 255, 0.08);
+}
+
+.pc-flecha {
+  flex: 0 0 auto;
+  width: 1.6rem;
+  border: 0;
+  background: none;
+  color: var(--muted, #7d8db0);
+  font: inherit;
+  cursor: pointer;
+}
+.pc-flecha:disabled {
+  color: #45506b;
+  cursor: default;
+}
+
+.pc-codigo {
+  flex: 0 0 6.2rem;
+  font-size: 0.82rem;
+  color: #8fb4ff;
+}
+.pc-fila.grupo .pc-codigo {
+  font-weight: 700;
+  color: #cfe0ff;
+}
+
+.pc-nombre {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* La D / A de Deudora-Acreedora. */
+.pc-dh {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 3px;
+  font-style: normal;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.pc-dh.deudora {
+  background: rgba(79, 140, 255, 0.2);
+  box-shadow: inset 0 0 0 1px rgba(79, 140, 255, 0.5);
+  color: #9dc0ff;
+}
+/* ----------------------------------------------------- mayores: árbol + saldo
+   Los mayores usan el mismo árbol del plan de cuentas (mismas clases `pc-*`),
+   pero con las columnas de dinero a la derecha. Por eso el encabezado y las
+   filas tienen que compartir la misma retícula o los números no caen arriba de
+   los de abajo. */
+.pc-encabezado {
+  background: var(--bg-3);
+  font-weight: 600;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  color: var(--muted, #7d8db0);
+  position: sticky;
+  top: 0;
+}
+.pc-fila .pc-nombre {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.mayor-debe,
+.mayor-haber {
+  flex: 0 0 7.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.mayor-saldo {
+  flex: 0 0 8.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.mayor-accion {
+  flex: 0 0 7rem;
+  text-align: right;
+}
+
+.pc-dh.acreedora {
+  background: rgba(46, 125, 50, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(76, 175, 80, 0.5);
+  color: #a5d6a7;
+}
+
+.pc-aux {
+  flex: 0 0 7.5rem;
+  font-size: 0.75rem;
+}
+
+/* El formulario de "subcuenta nueva". */
+.pc-alta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 0.9rem;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--line);
+}
+.pc-alta input[type="text"] {
+  flex: 1 1 16rem;
+}
+
+/* La explicación de arriba de qué es naturaleza y qué es deudora/acreedora. */
+.pc-leyenda {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0.8rem 0 0.2rem;
+  padding: 0.7rem 0.9rem;
+  background: var(--bg-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: #b6c4de;
+}
+.pc-leyenda .pc-dh {
+  vertical-align: -3px;
+  margin: 0 0.1rem;
+}
+
+/* ---------- contabilidad: asientos y mayores ---------- */
+
+/* La barra de filtros (código, desde, hasta, estado). Se apoya en el mismo
+   grid que los formularios para que no haya que inventar otro layout. */
+.form-barra {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+  margin: 1.4rem 0 1rem;
+}
+
+.as-dinero {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* --- un asiento (tarjeta) --- */
+.as-dia {
+  margin: 2rem 0;
+}
+
+.as-dia-cab {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: baseline;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.9rem;
+}
+
+.as-dia-cab h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.as-card {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: 1rem 1.1rem 1.1rem;
+  margin: 0 0 1rem;
+}
+
+.as-card header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  align-items: baseline;
+  margin-bottom: 0.7rem;
+}
+
+/* --- las dos solapas de los mayores (Cuentas / Movimientos) ---------------
+   El botón de la solapa activa se marca con el fondo, no solo con el color:
+   si el contador no distingue el color, no sabe en cuál está. */
+.solapas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 1.2rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.solapa {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.6rem 0.9rem;
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+
+.solapa:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.solapa.activa {
+  color: var(--ink);
+  border-bottom-color: var(--accent-3);
+}
+
+/* El subtítulo de la solapa (qué cuenta está abierta) va debajo, en chico. */
+.solapa-sub {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--muted);
+  margin-top: 0.15rem;
+}
+
+.solapa:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Los subtítulos dentro de una tarjeta (ej. "Saldo por auxiliar"). */
+.as-subtitulo {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 1.6rem 0 0.3rem;
+}
+
+.as-num {
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--accent-3);
+}
+
+.as-concepto {
+  flex: 1 1 12rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+/* La pastillita de estado. */
+.as-estado {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+.as-estado.contabilizado {
+  color: var(--ok);
+}
+
+.as-estado.borrador {
+  color: var(--muted);
+}
+
+.as-estado.anulado {
+  color: var(--err);
+}
+
+/* Un asiento anulado se ve tachado: que se note de un vistazo. */
+.as-card.anulado header {
+  opacity: 0.6;
+  text-decoration: line-through;
+}
+
+.as-tabla th:first-child,
+.as-tabla td:first-child {
+  width: 40%;
+}
+
+/* --- buscador de cuentas (asientos y mayores) --- */
+.as-buscador {
+  position: relative;
+}
+
+.as-buscador input {
+  width: 100%;
+}
+
+.as-resultados {
+  position: absolute;
+  top: calc(100% + 0.2rem);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  list-style: none;
+  margin: 0;
+  padding: 0.3rem;
+  max-height: 16rem;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.28);
+}
+
+.as-resultados button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.35rem 0.5rem;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 0.84rem;
+  cursor: pointer;
+}
+
+.as-resultados button:hover {
+  background: var(--line-soft);
+}
+
+.as-resultados button b {
+  font-family: var(--mono);
+  color: var(--accent-3);
+  margin-right: 0.35rem;
+}
+
+.as-cuenta b {
+  font-family: var(--mono);
+  color: var(--accent-3);
+  margin-right: 0.35rem;
+}
+
+/* --- aviso de "no hay nada en el filtro, pero sí hay cargado" ---
+   Va en amarillo, no en gris: no es un error, es una pista de que estás
+   mirando el período equivocado. Por eso tiene su propia clase y no reusa
+   la del aviso amarillo del preview (que sí es una advertencia). */
+.aviso-faltan {
+  border: 1px solid rgba(250, 204, 21, 0.5);
+  background: rgba(250, 204, 21, 0.08);
+  padding: 1rem 1.1rem;
+  margin: 1.2rem 0;
+}
+
+.aviso-faltan p {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+}
+
+.aviso-faltan p:last-of-type {
+  margin-bottom: 0.9rem;
+}
+
+/* --- el preview del asiento, en la pantalla de factura ---
+   Va con borde de atención: es una previsualización, todavía no se guardó
+   nada. El botón "OK, facturar" de abajo es el que confirma. */
+.as-preview {
+  border: 1px solid var(--accent);
+  background: var(--surface);
+  padding: 1.1rem 1.2rem;
+  margin: 1.5rem 0;
+}
+
+.as-preview h2 {
+  margin: 0 0 0.8rem;
+  font-size: 1.05rem;
+}
+
+/* El aviso amarillo del preview (falta alícuota, etc.). */
+.aviso-amarillo {
+  background: rgba(250, 204, 21, 0.12);
+  color: #fcd34d;
+  border-left: 3px solid #facc15;
+  font-size: 0.87rem;
+  font-weight: 500;
+  padding: 0.7rem 0.9rem;
+  margin: 0 0 0.9rem;
+}
+
+.as-preview .as-tabla td:first-child,
+.as-preview .as-tabla th:first-child {
+  width: auto;
+}
+
+/* --- editor del asiento --- */
+.as-editor {
+  border: 1px solid var(--accent);
+  background: var(--surface);
+  padding: 1.2rem;
+  margin: 2rem 0;
+}
+
+.as-editor h2 {
+  margin: 0 0 0.3rem;
+  font-size: 1.05rem;
 }

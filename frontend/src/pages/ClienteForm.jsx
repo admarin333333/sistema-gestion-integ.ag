@@ -1,10 +1,19 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   actualizarCliente,
+  actualizarProveedor,
   aPayload,
   buscarLocalidad,
   crearCliente,
+  crearProveedor,
+  listarServicios,
+  obtenerCliente,
+  obtenerProveedor,
+  ETIQUETAS_CONDICION_IVA,
+  ETIQUETAS_TIPO,
 } from "../api/clientes.js";
+import { listarAlicuotas } from "../api/alicuotas.js";
 
 const ACTIVIDADES = [
   ["profesional", "Profesional"],
@@ -29,49 +38,110 @@ const VACIO = {
   apellido: "",
   cuit: "",
   dni: "",
+  clave_fiscal: "",
   email: "",
   cod_area: "",
   telefono: "",
-  domicilio: "",
+  calle: "",
+  numero_calle: "",
   localidad: "",
   codigo_postal: "",
   provincia: "",
   actividad_economica: "",
   tipo_actividad: "",
+  condicion_iva: "",
+  alicuota_iva_id: "",
   observaciones: "",
+  fecha_cierre_ejercicio: "",
   servicios: [],
 };
 
-export default function ClienteForm({ cliente, servicios, onGuardado, onCancelar }) {
-  const esEdicion = Boolean(cliente);
-  const [datos, setDatos] = useState(() =>
-    cliente
-      ? {
-          tipo_persona: cliente.tipo_persona,
-          nombre: cliente.nombre,
-          apellido: cliente.apellido || "",
-          cuit: cliente.cuit || "",
-          dni: cliente.dni || "",
-          email: cliente.email || "",
-          cod_area: cliente.cod_area || "",
-          telefono: cliente.telefono || "",
-          domicilio: cliente.domicilio || "",
-          localidad: cliente.localidad || "",
-          codigo_postal: cliente.codigo_postal || "",
-          provincia: cliente.provincia || "",
-          actividad_economica: cliente.actividad_economica,
-          tipo_actividad: cliente.tipo_actividad,
-          observaciones: cliente.observaciones || "",
-          servicios: cliente.servicios.map((s) => s.id),
-        }
-      : VACIO
-  );
+export default function ClienteForm({ tipo = "cliente" }) {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const esProveedor = tipo === "proveedor";
+  const pref = esProveedor ? "proveedor" : "cliente";
+  const plural = esProveedor ? "proveedores" : "clientes";
+  const esEdicion = Boolean(id);
+  // Cada módulo tiene su propio endpoint: clientes y proveedores no se mezclan.
+  const obtener = esProveedor ? obtenerProveedor : obtenerCliente;
+  const crearRegistro = esProveedor ? crearProveedor : crearCliente;
+  const actualizarRegistro = esProveedor ? actualizarProveedor : actualizarCliente;
+  const [cliente, setCliente] = useState(null);
+  const [servicios, setServicios] = useState([]);
+  const [alicuotas, setAlicuotas] = useState([]);
+  const [datos, setDatos] = useState(VACIO);
+  const [cargando, setCargando] = useState(esEdicion);
   const [error, setError] = useState("");
   const [enviando, setEnviando] = useState(false);
 
+  useEffect(() => {
+    listarServicios()
+      .then(setServicios)
+      .catch(() => setServicios([]));
+    listarAlicuotas()
+      .then(setAlicuotas)
+      .catch(() => setAlicuotas([]));
+  }, []);
+
+  useEffect(() => {
+    if (!esEdicion) return;
+    obtener(id)
+      .then((c) => {
+        setCliente(c);
+        setDatos({
+          tipo_persona: c.tipo_persona,
+          nombre: c.nombre,
+          apellido: c.apellido || "",
+          cuit: c.cuit || "",
+          dni: c.dni || "",
+          clave_fiscal: c.clave_fiscal || "",
+          email: c.email || "",
+          cod_area: c.cod_area || "",
+          telefono: c.telefono || "",
+          calle: c.calle || "",
+          numero_calle: c.numero_calle || "",
+          localidad: c.localidad || "",
+          codigo_postal: c.codigo_postal || "",
+          provincia: c.provincia || "",
+          actividad_economica: c.actividad_economica,
+          tipo_actividad: c.tipo_actividad,
+          condicion_iva: c.condicion_iva || "",
+          alicuota_iva_id: c.alicuota_iva ? String(c.alicuota_iva.id) : "",
+          observaciones: c.observaciones || "",
+          fecha_cierre_ejercicio: c.fecha_cierre_ejercicio || "",
+          servicios: (c.servicios || []).map((s) => s.id),
+        });
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setCargando(false));
+  }, [id, esEdicion]);
+
   const fisica = datos.tipo_persona === "fisica";
+  const esRI = datos.condicion_iva === "responsable_inscripto";
 
   const set = (campo, valor) => setDatos((d) => ({ ...d, [campo]: valor }));
+
+  const cambiarCondicionIva = (valor) =>
+    setDatos((d) => ({
+      ...d,
+      condicion_iva: valor,
+      alicuota_iva_id: valor === "responsable_inscripto" ? d.alicuota_iva_id : "",
+    }));
+
+  /** Si la actividad es monotributo o RI, la condición se completa sola. */
+  const cambiarTipoActividad = (valor) =>
+    setDatos((d) => ({
+      ...d,
+      tipo_actividad: valor,
+      ...(valor === "monotributista" || valor === "responsable_inscripto"
+        ? {
+            condicion_iva: valor,
+            alicuota_iva_id:
+              valor === "responsable_inscripto" ? d.alicuota_iva_id : "",
+          }
+        : {}),
+    }));
 
   const cambiarPersona = (valor) =>
     setDatos((d) => ({ ...d, tipo_persona: valor, dni: valor === "juridica" ? "" : d.dni }));
@@ -109,23 +179,29 @@ export default function ClienteForm({ cliente, servicios, onGuardado, onCancelar
       apellido: fisica ? datos.apellido.trim() : null,
       cuit: datos.cuit.trim() || null,
       dni: fisica ? datos.dni.trim() || null : null,
+      clave_fiscal: datos.clave_fiscal.trim() || null,
       email: datos.email.trim() || null,
       cod_area: datos.cod_area.trim() || null,
       telefono: datos.telefono.trim() || null,
-      domicilio: datos.domicilio.trim() || null,
+      calle: datos.calle.trim() || null,
+      numero_calle: datos.numero_calle.trim() || null,
       localidad: datos.localidad.trim() || null,
       codigo_postal: datos.codigo_postal.trim() || null,
       provincia: datos.provincia.trim() || null,
       observaciones: datos.observaciones.trim() || null,
+      fecha_cierre_ejercicio: datos.fecha_cierre_ejercicio || null,
       actividad_economica: datos.actividad_economica,
       tipo_actividad: datos.tipo_actividad,
-      servicios: datos.servicios,
+      condicion_iva: datos.condicion_iva,
+      alicuota_iva_id: esRI ? Number(datos.alicuota_iva_id) : null,
+      // Los servicios son solo del módulo cliente.
+      ...(esProveedor ? {} : { servicios: datos.servicios }),
     };
     try {
       const guardado = esEdicion
-        ? await actualizarCliente(cliente.id, cuerpo)
-        : await crearCliente(cuerpo);
-      onGuardado(guardado);
+        ? await actualizarRegistro(id, cuerpo)
+        : await crearRegistro(cuerpo);
+      navigate(`/${pref}-ficha/${guardado.id}`);
     } catch (err) {
       setError(err.message);
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -134,10 +210,14 @@ export default function ClienteForm({ cliente, servicios, onGuardado, onCancelar
     }
   };
 
+  const cancelar = () => navigate(esEdicion ? `/${pref}-ficha/${id}` : `/${plural}`);
+
+  if (cargando) return <p className="nota">Cargando…</p>;
+
   return (
     <section>
-      <span className="kicker">Clientes</span>
-      <h1>{esEdicion ? "Modificar cliente" : "Nuevo cliente"}</h1>
+      <span className="kicker">{ETIQUETAS_TIPO[tipo]}</span>
+      <h1>{esEdicion ? `Modificar ${ETIQUETAS_TIPO[tipo].toLowerCase()}` : `Nuevo ${ETIQUETAS_TIPO[tipo].toLowerCase()}`}</h1>
       <p className="lead">
         Los campos con <span style={{ color: "var(--accent-3)" }}>*</span> son
         obligatorios.
@@ -161,6 +241,13 @@ export default function ClienteForm({ cliente, servicios, onGuardado, onCancelar
                 <option value="juridica">Persona jurídica</option>
               </select>
             </label>
+
+            {esEdicion && cliente && (
+              <label className="campo">
+                <span>N° de cuenta (automático)</span>
+                <input value={cliente.nro_cuenta} readOnly />
+              </label>
+            )}
 
             <label className="campo">
               <span>
@@ -218,6 +305,26 @@ export default function ClienteForm({ cliente, servicios, onGuardado, onCancelar
               </label>
             )}
           </div>
+
+          <div className="form-grid">
+            <label className="campo">
+              <span>
+                Clave fiscal de ARCA{" "}
+                <i style={{ fontStyle: "normal" }}>(opcional)</i>
+              </span>
+              <input
+                value={datos.clave_fiscal}
+                onChange={(e) => set("clave_fiscal", e.target.value)}
+                placeholder="ABC123DEF45"
+                maxLength={11}
+              />
+              <small className="ayuda">
+                11 caracteres, para trabajar en ARCA en nombre de{" "}
+                {esProveedor ? "este proveedor" : "este cliente"}. El sistema
+                guarda cuándo la cargaste y cada vez que la cambies.
+              </small>
+            </label>
+          </div>
         </fieldset>
 
         <fieldset className="fieldset">
@@ -256,11 +363,22 @@ export default function ClienteForm({ cliente, servicios, onGuardado, onCancelar
             </label>
 
             <label className="campo">
-              <span>Domicilio</span>
+              <span>Calle</span>
               <input
-                value={datos.domicilio}
-                onChange={(e) => set("domicilio", e.target.value)}
-                placeholder="Av. Siempreviva 742"
+                value={datos.calle}
+                onChange={(e) => set("calle", e.target.value)}
+                placeholder="Av. Siempreviva"
+                maxLength={30}
+              />
+            </label>
+
+            <label className="campo">
+              <span>Número</span>
+              <input
+                value={datos.numero_calle}
+                onChange={(e) => set("numero_calle", e.target.value)}
+                placeholder="742"
+                maxLength={10}
               />
             </label>
 
@@ -319,7 +437,7 @@ export default function ClienteForm({ cliente, servicios, onGuardado, onCancelar
               <select
                 required
                 value={datos.tipo_actividad}
-                onChange={(e) => set("tipo_actividad", e.target.value)}
+                onChange={(e) => cambiarTipoActividad(e.target.value)}
               >
                 <option value="">Elegí uno…</option>
                 {TIPOS.map(([v, t]) => (
@@ -329,24 +447,75 @@ export default function ClienteForm({ cliente, servicios, onGuardado, onCancelar
                 ))}
               </select>
             </label>
+
+            <label className="campo">
+              <span>
+                Condición ante el IVA <b className="obligatorio">*</b>
+              </span>
+              <select
+                required
+                value={datos.condicion_iva}
+                onChange={(e) => cambiarCondicionIva(e.target.value)}
+              >
+                <option value="">Elegí una…</option>
+                {Object.entries(ETIQUETAS_CONDICION_IVA).map(([v, t]) => (
+                  <option key={v} value={v}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {esRI && (
+              <label className="campo">
+                <span>
+                  Alícuota de IVA <b className="obligatorio">*</b>
+                </span>
+                <select
+                  required
+                  value={datos.alicuota_iva_id}
+                  onChange={(e) => set("alicuota_iva_id", e.target.value)}
+                >
+                  <option value="">Elegí una…</option>
+                  {alicuotas.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.nombre}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
         </fieldset>
 
-        <fieldset className="fieldset">
-          <legend>Servicios que contrata</legend>
-          <div className="checks">
-            {servicios.map((s) => (
-              <label className="check" key={s.id}>
-                <input
-                  type="checkbox"
-                  checked={datos.servicios.includes(s.id)}
-                  onChange={() => alternarServicio(s.id)}
-                />
-                {s.nombre}
-              </label>
-            ))}
-          </div>
-        </fieldset>
+        {/* Los servicios son solo del módulo cliente: los proveedores no contratan
+            servicios del estudio, así que el bloque no se muestra. */}
+        {!esProveedor && (
+          <fieldset className="fieldset">
+            <legend>Servicios que contrata</legend>
+            <div className="checks">
+              {servicios.map((s) => (
+                <label className="check" key={s.id}>
+                  <input
+                    type="checkbox"
+                    checked={datos.servicios.includes(s.id)}
+                    onChange={() => alternarServicio(s.id)}
+                  />
+                  {s.nombre}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
+
+        <label className="campo">
+          <span>Fecha de cierre de ejercicio — día y mes (para el Balance RT54)</span>
+          <input
+            type="date"
+            value={datos.fecha_cierre_ejercicio}
+            onChange={(e) => set("fecha_cierre_ejercicio", e.target.value)}
+          />
+        </label>
 
         <label className="campo">
           <span>Observaciones — un solo texto</span>
@@ -361,7 +530,7 @@ export default function ClienteForm({ cliente, servicios, onGuardado, onCancelar
           <button className="btn" type="submit" disabled={enviando}>
             {enviando ? "Guardando…" : esEdicion ? "Guardar cambios" : "Dar de alta"}
           </button>
-          <button className="btn fantasma" type="button" onClick={onCancelar}>
+          <button className="btn fantasma" type="button" onClick={cancelar}>
             Cancelar
           </button>
         </div>

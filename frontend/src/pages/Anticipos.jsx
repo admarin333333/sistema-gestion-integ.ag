@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useNavigate, useLocation } from "react-router-dom";
 import { descargar } from "../api/client.js";
 import { listarClientes } from "../api/clientes.js";
+import BuscadorCliente from "../components/BuscadorCliente.jsx";
 import {
   ESTADOS,
   listarAnticipos,
@@ -14,8 +16,11 @@ import { NOMBRE_ESTUDIO, fecha, pesos } from "../formato.js";
 
 const VACIOS = { cliente_id: "", desde: "", hasta: "" };
 
-export default function Anticipos({ ir, aviso }) {
+export default function Anticipos() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const aviso = location.state?.aviso;
   const esAdmin = user.rol === "admin";
 
   const [filtros, setFiltros] = useState(VACIOS);
@@ -45,6 +50,11 @@ export default function Anticipos({ ir, aviso }) {
   }, []);
 
   const cambiar = (k) => (e) => setFiltros({ ...filtros, [k]: e.target.value });
+
+  // El cliente elegido en el buscador, para que el campo muestre su nombre.
+  const clienteFiltro = clientes.find(
+    (c) => String(c.id) === String(filtros.cliente_id)
+  );
 
   const buscar = (e) => {
     e.preventDefault();
@@ -108,18 +118,17 @@ export default function Anticipos({ ir, aviso }) {
       </p>
 
       <form className="buscador" onSubmit={buscar}>
-        <select
-          aria-label="Cliente"
-          value={filtros.cliente_id}
-          onChange={cambiar("cliente_id")}
-        >
-          <option value="">Todos los clientes</option>
-          {clientes.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.nombre_completo}
-            </option>
-          ))}
-        </select>
+        {/* Buscador y no lista desplegada: se escribe y filtra al toque. */}
+        <BuscadorCliente
+          clientes={clientes}
+          seleccion={clienteFiltro || null}
+          onElegir={(c) =>
+            setFiltros({ ...filtros, cliente_id: c ? String(c.id) : "" })
+          }
+          tipo_registro="cliente"
+          etiqueta="Cliente"
+          placeholder="Todos los clientes — escribí para filtrar"
+        />
 
         <label className="campo">
           <span>Desde</span>
@@ -140,7 +149,7 @@ export default function Anticipos({ ir, aviso }) {
       </form>
 
       <div className="buscador">
-        <button className="btn btn-sm" onClick={() => ir("anticipo-alta")}>
+        <button className="btn btn-sm" onClick={() => navigate("/anticipo-alta")}>
           + Nuevo anticipo
         </button>
         <button
@@ -206,13 +215,13 @@ export default function Anticipos({ ir, aviso }) {
                   <td className="acciones">
                     <button
                       className="btn btn-sm fantasma"
-                      onClick={() => ir("anticipo-editar", a.id)}
+                      onClick={() => navigate(`/anticipo-editar/${a.id}`)}
                     >
                       Editar
                     </button>
                     <button
                       className="btn btn-sm fantasma"
-                      onClick={() => bajar(() => descargar(`/anticipos/${a.id}/pdf`))}
+                      onClick={() => descargar(`/anticipos/${a.id}/pdf`)}
                     >
                       PDF
                     </button>

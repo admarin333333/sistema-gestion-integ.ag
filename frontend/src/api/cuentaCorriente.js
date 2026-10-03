@@ -10,7 +10,7 @@ export const query = (filtros = {}) => {
 };
 
 export const obtenerCuentaCorriente = (clienteId, filtros = {}) =>
-  api(`/clientes/${clienteId}/cuenta-corriente${query(filtros)}`);
+  api(`/clientes/${clienteId}/cuenta${query(filtros)}`);
 
 export const exportarCuentaCorriente = (clienteId, filtros = {}) =>
-  descargar(`/clientes/${clienteId}/cuenta-corriente/export.xlsx${query(filtros)}`);
+  descargar(`/clientes/${clienteId}/cuenta/export.xlsx${query(filtros)}`);

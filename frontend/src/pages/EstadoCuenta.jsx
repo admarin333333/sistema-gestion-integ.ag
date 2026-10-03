@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { listarClientes } from "../api/clientes.js";
 import {
   obtenerCuentaCorriente,
   exportarCuentaCorriente,
 } from "../api/cuentaCorriente.js";
+import BuscadorCliente from "../components/BuscadorCliente.jsx";
 import { NOMBRE_ESTUDIO, fecha, pesos } from "../formato.js";
 
-export default function EstadoCuenta({ ir }) {
+export default function EstadoCuenta() {
+  const navigate = useNavigate();
   const [clientes, setClientes] = useState([]);
   const [clienteId, setClienteId] = useState("");
   const [filtros, setFiltros] = useState({ desde: "", hasta: "" });
@@ -67,6 +70,7 @@ export default function EstadoCuenta({ ir }) {
   };
 
   const clienteSel = clientes.find((c) => c.id === Number(clienteId));
+
   const tel = clienteSel
     ? [clienteSel.cod_area, clienteSel.telefono].filter(Boolean).join(" ")
     : "";
@@ -85,18 +89,11 @@ export default function EstadoCuenta({ ir }) {
       </p>
 
       <form className="buscador" onSubmit={(e) => { e.preventDefault(); if (clienteId) cargar(filtros); }}>
-        <select
-          value={clienteId}
-          onChange={(e) => setClienteId(e.target.value)}
-          aria-label="Cliente"
-        >
-          <option value="">— Seleccionar cliente —</option>
-          {clientes.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.nombre_completo}
-            </option>
-          ))}
-        </select>
+        <BuscadorCliente
+          clientes={clientes}
+          seleccion={clienteSel}
+          onElegir={(c) => setClienteId(c ? String(c.id) : "")}
+        />
 
         <label className="campo">
           <span>Desde</span>
@@ -118,7 +115,7 @@ export default function EstadoCuenta({ ir }) {
             Descargar Excel
           </button>
           <button className="btn btn-sm fantasma" onClick={() => window.print()}>Imprimir</button>
-          <button className="btn btn-sm fantasma" onClick={() => ir("cliente-ficha", clienteId)}>Ver ficha</button>
+          <button className="btn btn-sm fantasma" onClick={() => navigate(`/cliente-ficha/${clienteId}`)}>Ver ficha</button>
         </div>
       )}
 

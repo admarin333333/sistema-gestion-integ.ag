@@ -1,13 +1,17 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useNavigate, useLocation } from "react-router-dom";
 import { descargar } from "../api/client.js";
 import { listarClientes } from "../api/clientes.js";
+import BuscadorCliente from "../components/BuscadorCliente.jsx";
 import {
   ESTADOS,
   TIPOS,
+  anularAsientoFactura,
   anularFactura,
   eliminarFactura,
   enviarFacturas,
+  generarAsientoFactura,
   listarFacturas,
   query,
   reabrirFactura,
@@ -17,8 +21,11 @@ import { NOMBRE_ESTUDIO, fecha, pesos } from "../formato.js";
 
 const VACIOS = { cliente_id: "", estado: "", desde: "", hasta: "" };
 
-export default function Facturas({ ir, aviso }) {
+export default function Facturas() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const aviso = location.state?.aviso;
   const esAdmin = user.rol === "admin";
 
   const [filtros, setFiltros] = useState(VACIOS);
@@ -29,6 +36,9 @@ export default function Facturas({ ir, aviso }) {
   const [error, setError] = useState("");
   const [tildadas, setTildadas] = useState([]);
   const [avisos, setAvisos] = useState([]);
+  // La factura cuyo asiento se está generando: para dejar el botón en
+  // "Generando…" y que no se pueda apretar dos veces.
+  const [generando, setGenerando] = useState(null);
 
   const cargar = async (f) => {
     setCargando(true);
@@ -53,6 +63,11 @@ export default function Facturas({ ir, aviso }) {
   }, []);
 
   const cambiar = (k) => (e) => setFiltros({ ...filtros, [k]: e.target.value });
+
+  // El cliente elegido en el buscador, para que el campo muestre su nombre.
+  const clienteFiltro = clientes.find(
+    (c) => String(c.id) === String(filtros.cliente_id)
+  );
 
   const buscar = (e) => {
     e.preventDefault();
@@ -86,6 +101,72 @@ export default function Facturas({ ir, aviso }) {
   const nombreCliente = (id) => {
     const c = clientes.find((x) => x.id === Number(id));
     return c ? c.nombre_completo : "";
+  };
+
+  // Cuántas del listado están sin asentar. Se cuentan acá y no en el backend
+  // porque es un dato de la pantalla (solo de lo que se está viendo), no un
+  // total del sistema: si filtrás por cliente, el aviso habla de las de ESE
+  // cliente.
+  //
+  // Las anuladas se dejan fuera: una factura anulada no se asienta nunca.
+  const sinAsentar = lista.filter(
+    (f) => !f.id_asiento && f.estado !== "anulada"
+  ).length;
+
+  /* --- los botones del asiento ------------------------------------------
+   *
+   * Las facturas cargadas ANTES de que existiera el módulo contable no tienen
+   * asiento: se emiten igual, pero no están en los libros. El botón "Generar"
+   * les crea el que les corresponde, con la misma proyección que usa el alta
+   * (Documentos a cobrar / ingresos / IVA, o el inverso si es una nota).
+   *
+   * Anular la factura NO anula el asiento: son cosas separadas. Por eso el
+   * botón sale solo si NO tiene asiento; si lo tiene, se ve su número y se lo
+   * puede anular desde la pantalla de asientos.
+   */
+  const generarAsiento = async (f) => {
+    if (
+      !window.confirm(
+        `¿Generar el asiento de la factura ${f.numero}?\n\n` +
+          "Se va a asentar como está ahora: Documentos a cobrar, ingresos e IVA."
+      )
+    ) {
+      return;
+    }
+    setError("");
+    setGenerando(f.id);
+    try {
+      await generarAsientoFactura(f.id);
+      setAvisos((v) => [...v, `Asiento generado para la factura ${f.numero}.`]);
+      await cargar(filtros);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setGenerando(null);
+    }
+  };
+
+  const anularAsiento = async (f) => {
+    if (
+      !window.confirm(
+        `¿Anular el asiento ${f.numero_comprobante_asiento}?\n\n` +
+          "La factura sigue como estaba. Anulado es terminal: ese asiento no " +
+          "se vuelve a usar, y hay que generar otro si hace falta."
+      )
+    ) {
+      return;
+    }
+    setError("");
+    setGenerando(f.id);
+    try {
+      await anularAsientoFactura(f.id);
+      setAvisos((v) => [...v, `Asiento ${f.numero_comprobante_asiento} anulado.`]);
+      await cargar(filtros);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setGenerando(null);
+    }
   };
 
   // qué cubre este listado (se imprime arriba de todo)
@@ -146,19 +227,30 @@ export default function Facturas({ ir, aviso }) {
         abajo lo calcula la base de datos, no el navegador.
       </p>
 
+      {/* El aviso que faltaba: si hay facturas sin asentar, no se nota en la
+          columna sola. Sin él, el contador ve una lista de comprobantes
+          normales y asume que están todos en los libros. */}
+      {sinAsentar > 0 && (
+        <p className="aviso-amarillo">
+          Hay <b>{sinAsentar}</b> comprobante{sinAsentar === 1 ? "" : "s"} sin
+          asiento en este listado. Son las facturas cargadas antes de que
+          existiera el módulo contable: no están en los mayores ni en el balance.
+          Apretá <b>Generar asiento</b> en cada una para traerlas al libro.
+        </p>
+      )}
+
       <form className="buscador" onSubmit={buscar}>
-        <select
-          aria-label="Cliente"
-          value={filtros.cliente_id}
-          onChange={cambiar("cliente_id")}
-        >
-          <option value="">Todos los clientes</option>
-          {clientes.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.nombre_completo}
-            </option>
-          ))}
-        </select>
+        {/* Buscador y no lista desplegada: se escribe y filtra al toque. */}
+        <BuscadorCliente
+          clientes={clientes}
+          seleccion={clienteFiltro || null}
+          onElegir={(c) =>
+            setFiltros({ ...filtros, cliente_id: c ? String(c.id) : "" })
+          }
+          tipo_registro="cliente"
+          etiqueta="Cliente"
+          placeholder="Todos los clientes — escribí para filtrar"
+        />
 
         <select aria-label="Estado" value={filtros.estado} onChange={cambiar("estado")}>
           <option value="">Cualquier estado</option>
@@ -188,7 +280,7 @@ export default function Facturas({ ir, aviso }) {
       </form>
 
       <div className="buscador">
-        <button className="btn btn-sm" onClick={() => ir("factura-alta")}>
+        <button className="btn btn-sm" onClick={() => navigate("/factura-alta")}>
           + Nueva factura
         </button>
         <button
@@ -200,7 +292,7 @@ export default function Facturas({ ir, aviso }) {
         </button>
         <button
           className="btn btn-sm fantasma"
-          onClick={() => bajar(`/facturas/export.xlsx${query(filtros)}`)}
+          onClick={() => descargar(`/facturas/export.xlsx${query(filtros)}`)}
         >
           Descargar Excel
         </button>
@@ -231,6 +323,7 @@ export default function Facturas({ ir, aviso }) {
               <th>Concepto</th>
               <th className="derecha">Importe</th>
               <th>Estado</th>
+              <th>Asiento</th>
               <th></th>
             </tr>
           </thead>
@@ -278,16 +371,54 @@ export default function Facturas({ ir, aviso }) {
                     <span className={`chip ${f.estado}`}>{ESTADOS[f.estado]}</span>
                     {f.fecha_envio && <span className="chip enviada">Enviado</span>}
                   </td>
+                  {/* La columna del asiento: muestra el número del comprobante
+                      si lo tiene, y el botón "Generar" si no. Sin esto, las
+                      facturas cargadas antes del módulo quedaban fuera de los
+                      libros sin que se notara. */}
+                  <td>
+                    {f.numero_comprobante_asiento ? (
+                      <span className="mono">{f.numero_comprobante_asiento}</span>
+                    ) : f.estado === "anulada" ? (
+                      <small className="nota">—</small>
+                    ) : (
+                      <small className="nota">sin asentar</small>
+                    )}
+                  </td>
                   <td className="acciones">
                     <button
                       className="btn btn-sm fantasma"
-                      onClick={() => ir("factura-editar", f.id)}
+                      onClick={() => navigate(`/factura-editar/${f.id}`)}
                     >
                       Editar
                     </button>
+                    {/* El botón del asiento sale SOLO si la factura no lo tiene
+                        y no está anulada. Con el asiento ya hecho, la acción es
+                        "Modificar" o "Anular", que van desde la pantalla de
+                        asientos: son tres botones separados porque anular la
+                        factura NO anula el asiento. */}
+                    {esAdmin && f.estado !== "anulada" && !f.id_asiento && (
+                      <button
+                        className="btn btn-sm"
+                        onClick={() => generarAsiento(f)}
+                        disabled={generando === f.id}
+                        title="Genera el asiento que le faltaba a esta factura"
+                      >
+                        {generando === f.id ? "Generando…" : "Generar asiento"}
+                      </button>
+                    )}
+                    {esAdmin && f.estado !== "anulada" && f.id_asiento && (
+                      <button
+                        className="btn btn-sm fantasma"
+                        onClick={() => anularAsiento(f)}
+                        disabled={generando === f.id}
+                        title="Anula solo el asiento; la factura sigue como estaba"
+                      >
+                        Anular asiento
+                      </button>
+                    )}
                     <button
                       className="btn btn-sm fantasma"
-                      onClick={() => bajar(`/facturas/${f.id}/pdf`)}
+                      onClick={() => descargar(`/facturas/${f.id}/pdf`)}
                     >
                       PDF
                     </button>
@@ -324,28 +455,31 @@ export default function Facturas({ ir, aviso }) {
                   </td>
                 </tr>
               ))}
-          </tbody>
+            </tbody>
 
-          <tfoot>
-            <tr>
-              <td className="col-tilde"></td>
-              <td colSpan="5">
-                <b>TOTAL</b>
-              </td>
-              <td className="mono derecha">
-                <b>{pesos(total)}</b>
-              </td>
-              <td colSpan="2"></td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+            <tfoot>
+              {/* Los colSpan tienen que sumar las columnas del thead: tilde +
+                  7 del cuerpo + Asiento + acciones. Con la columna nueva, si no
+                  se ajustan, el TOTAL se corre de lugar. */}
+              <tr>
+                <td className="col-tilde"></td>
+                <td colSpan="5">
+                  <b>TOTAL</b>
+                </td>
+                <td className="mono derecha">
+                  <b>{pesos(total)}</b>
+                </td>
+                <td colSpan="3"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
 
-      <p className="nota">
-        {cargando
-          ? ""
-          : `${lista.length} comprobante${lista.length === 1 ? "" : "s"} en el listado`}
-      </p>
-    </section>
-  );
-}
+        <p className="nota">
+          {cargando
+            ? ""
+            : `${lista.length} comprobante${lista.length === 1 ? "" : "s"} en el listado`}
+        </p>
+      </section>
+    );
+  }

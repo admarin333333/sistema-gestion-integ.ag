@@ -29,6 +29,10 @@ ETIQUETAS_ESTADO = {
     "anulada": "Anulada",
 }
 
+# Qué cuenta de ingresos va en el Haber del asiento. El contador elige; de
+# ahí sale la clave de `config_asientos` (VENTA_SERVICIOS_* / VENTA_ARTICULOS_*).
+OPERACIONES = {"SERVICIOS": "Servicios", "ARTICULOS": "Artículos"}
+
 
 def _digitos(valor: str) -> str:
     return "".join(c for c in valor if c.isdigit())
@@ -42,11 +46,25 @@ class FacturaBase(BaseModel):
     numero: str = Field(max_length=12)
     concepto: str | None = Field(default=None, max_length=200)
     importe: float = Field(gt=0, description="Importe en pesos")
+    # Si esta factura es una NOTA (de crédito o de débito), cuál corrige. Va en
+    # NULL para las facturas normales.
+    #
+    # El tipo y el signo del asiento los decide el backend a partir del
+    # `tipo_comprobante`: una nota de crédito pone los ingresos en el Debe.
+    factura_relacionada_id: int | None = None
     fecha_vencimiento: date | None = None
     condicion_venta: str = "contado"
     # ARCA — opcionales en esta versión
     cae: str | None = Field(default=None, max_length=20)
     cae_vencimiento: date | None = None
+
+    # --- Para el asiento contable -----------------------------------
+    # Servicios o artículos: decide a qué cuenta de ingresos va el Haber.
+    tipo_operacion: str = "SERVICIOS"
+    # La alícuota de IVA. El NETO y el IVA **no se mandan**: los desglosa el
+    # backend a partir del importe y esta alícuota. El navegador no calcula
+    # nada contable.
+    alicuota_iva_id: int | None = None
 
     @field_validator("tipo_comprobante")
     @classmethod
@@ -60,6 +78,13 @@ class FacturaBase(BaseModel):
     def _condicion(cls, valor: str) -> str:
         if valor not in CONDICIONES_VENTA:
             raise ValueError("Condición de venta no válida")
+        return valor
+
+    @field_validator("tipo_operacion")
+    @classmethod
+    def _operacion(cls, valor: str) -> str:
+        if valor not in OPERACIONES:
+            raise ValueError("Tipo de operación no válido")
         return valor
 
     @field_validator("punto_venta")
@@ -102,6 +127,41 @@ class FacturaCrear(FacturaBase):
     pass
 
 
+class FacturaPreview(BaseModel):
+    """Lo mismo que la factura, pero para PREVISUALIZAR el asiento.
+
+    No guarda nada: la pantalla lo manda mientras se carga el formulario para
+    ver cómo va a quedar el asiento, y recién al apretar "OK, facturar" se
+    crea la factura de verdad.
+
+    Todos los campos son opcionales salvo el cliente y el importe, que son los
+    dos sin los cuales no hay nada que proyectar.
+
+    El `tipo_comprobante` SÍ importa acá: si es una nota de crédito, el preview
+    muestra el asiento al revés (ingresos en el Debe) y el código `NC` en vez de
+    `FV`. Por eso no se puede hardcodear `factura_b`.
+    """
+
+    cliente_id: int | None = None
+    fecha: date = Field(default_factory=date.today)
+    tipo_comprobante: str = "factura_b"
+    punto_venta: str | None = None
+    numero: str | None = None
+    concepto: str | None = None
+    importe: float | None = None
+    condicion_venta: str = "contado"
+    tipo_operacion: str = "SERVICIOS"
+    alicuota_iva_id: int | None = None
+    factura_relacionada_id: int | None = None
+
+    @field_validator("tipo_operacion")
+    @classmethod
+    def _operacion(cls, valor: str) -> str:
+        if valor not in OPERACIONES:
+            raise ValueError("Tipo de operación no válido")
+        return valor
+
+
 class FacturaActualizar(FacturaBase):
     pass
 
@@ -112,6 +172,8 @@ class FacturaOut(BaseModel):
     id: int
     cliente_id: int
     cliente_nombre: str
+    # La factura que esta nota corrige, si es una nota.
+    factura_relacionada_id: int | None = None
     fecha: date
     tipo_comprobante: str
     punto_venta: str
@@ -127,6 +189,24 @@ class FacturaOut(BaseModel):
     fecha_envio: datetime | None = None
     creado: datetime
     actualizado: datetime | None = None
+
+    # --- Asiento contable ---
+    # El desglose que calculó el backend. `importe = neto + iva` siempre.
+    tipo_operacion: str = "SERVICIOS"
+    neto: float | None = None
+    iva: float | None = None
+    alicuota_iva_id: int | None = None
+    alicuota_iva_aplicada: float | None = None
+
+    # El asiento que se generó a partir de esta factura, si hay. La pantalla
+    # usa esto para mostrar los botones Generar / Modificar / Anular.
+    id_asiento: int | None = None
+    estado_asiento: str | None = None
+    numero_comprobante_asiento: str | None = None
+
+    # Lo que hay que avisarle al contador al cargar una nota: por ejemplo que
+    # la factura que corrige ya estaba pagada. No bloquean, se muestran.
+    avisos: list[str] = Field(default_factory=list)
 
 
 class EnvioMasivo(BaseModel):

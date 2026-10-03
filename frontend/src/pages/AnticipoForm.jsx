@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { listarClientes } from "../api/clientes.js";
+import BuscadorCliente from "../components/BuscadorCliente.jsx";
 import { listarFacturas } from "../api/facturas.js";
 import {
   ESTADOS,
@@ -20,7 +22,9 @@ const VACIO = {
   importe: "",
 };
 
-export default function AnticipoForm({ anticipoId, onGuardado, onCancelar }) {
+export default function AnticipoForm() {
+  const { id: anticipoId } = useParams();
+  const navigate = useNavigate();
   const esEdicion = Boolean(anticipoId);
   const [datos, setDatos] = useState(VACIO);
   const [clientes, setClientes] = useState([]);
@@ -28,6 +32,15 @@ export default function AnticipoForm({ anticipoId, onGuardado, onCancelar }) {
   const [aplicaciones, setAplicaciones] = useState([]);
   const [cargando, setCargando] = useState(esEdicion);
   const [error, setError] = useState("");
+
+  // El cliente elegido, para que el buscador muestre su nombre y no el número.
+  //
+  // Va DESPUÉS de `clientes`: si se usara antes, el componente tiraría
+  // "Cannot access 'clientes' before initialization" y la pantalla quedaría en
+  // blanco.
+  const clienteElegido = clientes.find(
+    (c) => String(c.id) === String(datos.cliente_id)
+  );
   const [enviando, setEnviando] = useState(false);
   const [nuevaAplicacion, setNuevaAplicacion] = useState({ factura_id: "", importe: "" });
   const [anticipo, setAnticipo] = useState(null);
@@ -110,8 +123,8 @@ export default function AnticipoForm({ anticipoId, onGuardado, onCancelar }) {
     setEnviando(true);
     setError("");
     try {
-      const r = await guardar();
-      onGuardado(r);
+      await guardar();
+      navigate("/anticipos");
     } catch (e2) {
       setError(e2.message);
     } finally {
@@ -167,19 +180,22 @@ export default function AnticipoForm({ anticipoId, onGuardado, onCancelar }) {
         <fieldset className="fieldset">
           <legend>Anticipo</legend>
           <div className="form-grid">
-            <label className="campo">
-              <span>
-                Cliente <b className="obligatorio">*</b>
-              </span>
-              <select value={datos.cliente_id} onChange={set("cliente_id")} disabled={esEdicion}>
-                <option value="">Elegí un cliente…</option>
-                {clientes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre_completo}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {/* Buscador y no lista desplegada. Al EDITAR queda deshabilitado (el
+                cliente de un anticipo no se cambia), igual que el `<select>`
+                que había antes. */}
+            <BuscadorCliente
+              clientes={clientes}
+              seleccion={clienteElegido}
+              disabled={esEdicion}
+              onElegir={(c) =>
+                setDatos((d) => ({ ...d, cliente_id: c ? String(c.id) : "" }))
+              }
+              tipo_registro="cliente"
+              etiqueta="Cliente *"
+              placeholder={
+                esEdicion ? "No se puede cambiar" : "Escribí el nombre, el CUIT o el DNI…"
+              }
+            />
 
             <label className="campo">
               <span>
@@ -332,7 +348,7 @@ export default function AnticipoForm({ anticipoId, onGuardado, onCancelar }) {
           <button className="btn" type="submit" disabled={enviando}>
             {enviando ? "Guardando…" : esEdicion ? "Guardar cambios" : "Dar de alta"}
           </button>
-          <button className="btn fantasma" type="button" onClick={onCancelar}>
+          <button className="btn fantasma" type="button" onClick={() => navigate("/anticipos")}>
             Cancelar
           </button>
         </div>

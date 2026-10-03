@@ -1,15 +1,29 @@
 import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { listarClientes } from "../api/clientes.js";
+import BuscadorCliente from "../components/BuscadorCliente.jsx";
 import {
   obtenerEstadoDeuda,
   exportarEstadoDeuda,
 } from "../api/informes.js";
 import { NOMBRE_ESTUDIO, fecha, pesos } from "../formato.js";
 
-export default function EstadoDeuda({ ir }) {
+export default function EstadoDeuda() {
+  const navigate = useNavigate();
+  // El cliente puede venir en la dirección: el botón "Detalle" de la cuenta
+  // corriente manda a `/estado-deuda?cliente=7`. Sin esto, el contador llegaba
+  // desde la lista y tenía que volver a buscar el cliente a mano.
+  const [params] = useSearchParams();
+  const clienteDeUrl = params.get("cliente") || "";
   const [clientes, setClientes] = useState([]);
-  const [clienteId, setClienteId] = useState("");
-  const [filtros, setFiltros] = useState({ desde: "", hasta: "" });
+  const [clienteId, setClienteId] = useState(clienteDeUrl);
+  const [filtros, setFiltros] = useState({
+    desde: "",
+    hasta: "",
+    // "Solo vencidas" es el caso de uso del día: ir a buscar a los que atrasaron.
+    // Con todo mezclado hay que leer la columna de vencimiento fila por fila.
+    solo_vencidas: false,
+  });
   const [data, setData] = useState(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
@@ -20,15 +34,19 @@ export default function EstadoDeuda({ ir }) {
       .catch(() => setClientes([]));
   }, []);
 
-  const cargar = async () => {
-    if (!clienteId) return;
+  // `idQuePedir` existe porque al elegir en el buscador el `setClienteId` todavía
+  // no se aplicó: si `cargar` leyera el `clienteId` del cierre, pediría el
+  // cliente ANTERIOR y la pantalla mostraría la deuda de otro.
+  const cargar = async (idQuePedir = clienteId) => {
+    if (!idQuePedir) return;
     setCargando(true);
     setError("");
     try {
       const data = await obtenerEstadoDeuda({
-        cliente_id: Number(clienteId),
+        cliente_id: Number(idQuePedir),
         desde: filtros.desde || undefined,
         hasta: filtros.hasta || undefined,
+        solo_vencidas: filtros.solo_vencidas || undefined,
       });
       setData(data);
     } catch (e) {
@@ -44,11 +62,12 @@ export default function EstadoDeuda({ ir }) {
     } else {
       setData(null);
     }
-  }, [clienteId, filtros.desde, filtros.hasta]);
+  }, [clienteId, filtros.desde, filtros.hasta, filtros.solo_vencidas]);
 
   const cambiarFiltro = (k) => (e) => setFiltros({ ...filtros, [k]: e.target.value });
 
-  const limpiarFiltros = () => setFiltros({ desde: "", hasta: "" });
+  const limpiarFiltros = () =>
+    setFiltros({ desde: "", hasta: "", solo_vencidas: false });
 
   const exportar = async () => {
     if (!clienteId) return;
@@ -57,6 +76,7 @@ export default function EstadoDeuda({ ir }) {
         cliente_id: Number(clienteId),
         desde: filtros.desde || undefined,
         hasta: filtros.hasta || undefined,
+        solo_vencidas: filtros.solo_vencidas || undefined,
       });
     } catch (e) {
       setError(e.message);
@@ -75,23 +95,26 @@ export default function EstadoDeuda({ ir }) {
       <span className="kicker">Informes</span>
       <h1>Estado de deuda total</h1>
       <p className="lead">
-        Facturas, notas de crédito y notas de débito pendientes de pago.
-        Filtrá por cliente y rango de fechas.
+        Facturas, notas de crédito y notas de débito pendientes de pago, con lo que ya
+        está <b>vencido</b> a la vista. Una factura vence {data?.dias_plazo ?? 7} días
+        después de su fecha: es el plazo que usa el sistema.
       </p>
 
       <form className="buscador" onSubmit={(e) => { e.preventDefault(); if (clienteId) cargar(); }}>
-        <select
-          value={clienteId}
-          onChange={(e) => { setClienteId(e.target.value); cargar(); }}
-          aria-label="Cliente"
-        >
-          <option value="">— Seleccionar cliente —</option>
-          {clientes.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.nombre_completo}
-            </option>
-          ))}
-        </select>
+        {/* Buscador, no lista desplegada. Antes era un `<select>` con TODOS los
+            clientes: con 40 ya hay que buscarlos scrolleando dentro de la lista,
+            y con 400 es imposible. Acá se escribe el nombre (o el CUIT, o el DNI)
+            y se filtra al toque. */}
+        <BuscadorCliente
+          clientes={clientes}
+          seleccion={clienteSel || null}
+          onElegir={(c) => {
+            setClienteId(c ? String(c.id) : "");
+            if (c) cargar(String(c.id));
+          }}
+          tipo_registro="cliente"
+          etiqueta="Cliente"
+        />
 
         <label className="campo">
           <span>Desde</span>
@@ -101,6 +124,19 @@ export default function EstadoDeuda({ ir }) {
         <label className="campo">
           <span>Hasta</span>
           <input type="date" value={filtros.hasta} onChange={cambiarFiltro("hasta")} />
+        </label>
+
+        <label className="campo">
+          <span>Mostrar</span>
+          <select
+            value={filtros.solo_vencidas ? "vencidas" : "todas"}
+            onChange={(e) =>
+              setFiltros({ ...filtros, solo_vencidas: e.target.value === "vencidas" })
+            }
+          >
+            <option value="todas">Todas las pendientes</option>
+            <option value="vencidas">Solo las vencidas</option>
+          </select>
         </label>
 
         <button className="btn btn-sm" type="submit">Filtrar</button>
@@ -113,7 +149,7 @@ export default function EstadoDeuda({ ir }) {
             Descargar Excel
           </button>
           <button className="btn btn-sm fantasma" onClick={() => window.print()}>Imprimir</button>
-          <button className="btn btn-sm fantasma" onClick={() => ir("cliente-ficha", clienteId)}>Ver ficha</button>
+          <button className="btn btn-sm fantasma" onClick={() => navigate(`/cliente-ficha/${clienteId}`)}>Ver ficha</button>
         </div>
       )}
 
@@ -187,16 +223,26 @@ export default function EstadoDeuda({ ir }) {
                   <th className="derecha">Pendiente</th>
                   <th>Estado</th>
                   <th>Vencimiento</th>
+                  <th className="derecha">Días vencida</th>
                 </tr>
               </thead>
               <tbody>
                 {cargando ? (
-                  <tr><td colSpan="10" className="vacio">Cargando…</td></tr>
+                  <tr><td colSpan="11" className="vacio">Cargando…</td></tr>
                 ) : data.items.length === 0 ? (
-                  <tr><td colSpan="10" className="vacio">No hay comprobantes pendientes en el período seleccionado.</td></tr>
+                  <tr>
+                    <td colSpan="11" className="vacio">
+                      {filtros.solo_vencidas
+                        ? "No hay comprobantes vencidos: está todo al día."
+                        : "No hay comprobantes pendientes en el período seleccionado."}
+                    </td>
+                  </tr>
                 ) : (
                   data.items.map((m) => (
-                    <tr key={`${m.fecha}-${m.tipo}-${m.punto_venta}-${m.numero}`}>
+                    <tr
+                      key={`${m.fecha}-${m.tipo}-${m.punto_venta}-${m.numero}`}
+                      className={m.vencido ? "fila-vencida" : ""}
+                    >
                       <td className="mono">{fecha(m.fecha)}</td>
                       <td>{m.tipo}</td>
                       <td className="mono">{m.punto_venta}</td>
@@ -207,6 +253,13 @@ export default function EstadoDeuda({ ir }) {
                       <td className="mono derecha"><b>{pesos(m.pendiente)}</b></td>
                       <td><span className={`chip ${m.estado.toLowerCase()}`}>{m.estado}</span></td>
                       <td className="mono">{m.fecha_vencimiento ? fecha(m.fecha_vencimiento) : "—"}</td>
+                      <td className="mono derecha">
+                        {m.vencido ? (
+                          <b className="vencida">{m.dias_vencida}</b>
+                        ) : (
+                          <span className="vacio">—</span>
+                        )}
+                      </td>
                     </tr>
                   ))
                 )}
@@ -216,13 +269,28 @@ export default function EstadoDeuda({ ir }) {
                   <td colSpan="6"><b>TOTALES</b></td>
                   <td className="mono derecha"><b>{pesos(data.total_general)}</b></td>
                   <td className="mono derecha"><b>{pesos(data.pendiente_general)}</b></td>
-                  <td colSpan="2"></td>
+                  <td colSpan="3"></td>
                 </tr>
               </tfoot>
             </table>
           </div>
 
-          <p className="nota">Pendiente total: <b>{pesos(data.pendiente_general)}</b></p>
+          {/* Las dos cifras del día, juntas: cuánto le deben en total, y
+              cuánto de eso hay que ir a cobrar YA porque venció. */}
+          <div className="panel resumen-deuda">
+            <div>
+              <span>Pendiente total</span>
+              <b>{pesos(data.pendiente_general)}</b>
+              <small>{data.cantidad_total} comprobante(s)</small>
+            </div>
+            <div className={data.cantidad_vencida ? "alerta" : ""}>
+              <span>Vencido</span>
+              <b>{pesos(data.total_vencido)}</b>
+              <small>
+                {data.cantidad_vencida} de {data.cantidad_total} comprobante(s)
+              </small>
+            </div>
+          </div>
         </>
       )}
 

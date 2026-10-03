@@ -9,8 +9,34 @@ export const pesos = (v) =>
     maximumFractionDigits: 2,
   }).format(Number(v) || 0);
 
+/** 12276.766 -> "12.276,7660" — índices y coeficiente con4 decimales. */
+export const cuatro = (v) =>
+  v === null || v === undefined || v === ""
+    ? "—"
+    : new Intl.NumberFormat("es-AR", {
+        minimumFractionDigits: 4,
+        maximumFractionDigits: 4,
+      }).format(Number(v));
+
 /** "2026-09-30" -> "30/09/2026". */
 export const fecha = (iso) => (iso ? String(iso).split("-").reverse().join("/") : "—");
+
+/** "2026-10-01T14:23:05" -> "01/10/2026 14:23".
+ *  El backend guarda la hora en UTC (datetime.utcnow), así que se convierte a
+ *  la hora local: si no, un cambio hecho a las 21 de Argentina saldría como
+ *  "mañana 00:xx". Las fechas solas (sin hora) no se desplazan. */
+export const fechaHora = (iso) => {
+  if (!iso) return "—";
+  const s = String(iso);
+  if (s.length <= 10) return fecha(s); // solo fecha: se muestra tal cual
+  const d = new Date(`${s.slice(0, 10)}T${s.slice(11, 19)}Z`);
+  if (Number.isNaN(d.getTime())) return `${fecha(s.slice(0, 10))} ${s.slice(11, 16)}`;
+  const dos = (n) => String(n).padStart(2, "0");
+  return (
+    `${dos(d.getDate())}/${dos(d.getMonth() + 1)}/${d.getFullYear()} ` +
+    `${dos(d.getHours())}:${dos(d.getMinutes())}`
+  );
+};
 
 /** Genera link de WhatsApp con el número formateado.
  *  Recibe código de área y teléfono, devuelve URL de WhatsApp Web. */

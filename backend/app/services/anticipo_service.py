@@ -21,7 +21,7 @@ from app.schemas.anticipo import (
     AnticipoCrear,
     ETIQUETAS_ESTADO,
 )
-from app.services import factura_service
+from app.services import cliente_service, factura_service
 
 # Tolerancia de centavos: los decimales flotantes no cierran exactos.
 _E = 0.005
@@ -82,16 +82,23 @@ def _proximo_numero(db: Session) -> str:
     return "00000001"
 
 
-def _verificar_unico(db: Session, numero: str, excluye: int | None = None) -> None:
-    consulta = db.query(Anticipo).filter(Anticipo.numero == numero)
-    if excluye:
-        consulta = consulta.filter(Anticipo.id != excluye)
-    if consulta.first():
-        raise Rechazo(f"Ya existe el anticipo {numero}", 409)
+def _verificar_cliente(db: Session, cliente_id: int) -> None:
+    """El cliente tiene que existir: si no, MySQL tira un error de FK."""
+    if cliente_service.obtener(db, cliente_id) is None:
+        raise Rechazo("No existe ese cliente", 404)
 
 
 def crear(db: Session, datos: AnticipoCrear) -> Anticipo:
-    # Generar número correlativo automáticamente
+    _verificar_cliente(db, datos.cliente_id)
+    # El número se genera siempre solo (ver `AnticipoCrear`). Antes se aceptaba
+    # el que mandaba el usuario y se ignoraba en silencio, que es peor: uno
+    # creía estar eligiendo el número y no pasaba nada.
+    if datos.numero is not None:
+        raise Rechazo(
+            "El número del anticipo se genera solo. Dejalo vacío en el "
+            "formulario (no lo cargues a mano).",
+            400,
+        )
     numero = _proximo_numero(db)
     datos_dict = datos.model_dump()
     datos_dict["numero"] = numero

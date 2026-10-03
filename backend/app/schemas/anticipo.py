@@ -21,7 +21,11 @@ class AnticipoBase(BaseModel):
 
 
 class AnticipoCrear(AnticipoBase):
-    """Para crear: el número se genera automáticamente en el service."""
+    """Para crear: el número lo genera el service.
+
+    `numero` está acá solo para poder contestarle al usuario que no se carga a
+    mano (si viene, el service lo rechaza con un mensaje claro).
+    """
     numero: str | None = Field(default=None, max_length=8)
 
 

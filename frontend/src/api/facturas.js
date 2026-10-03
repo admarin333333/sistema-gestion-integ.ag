@@ -26,6 +26,15 @@ export const ESTADOS = {
   anulada: "Anulada",
 };
 
+/** Servicios o artículos: decide a qué cuenta de ingresos va el Haber. */
+export const OPERACIONES = {
+  SERVICIOS: "Servicios",
+  ARTICULOS: "Artículos",
+};
+
+/** El catálogo de alícuotas de IVA (10,5% · 21% · 27%…). */
+export const listarAlicuotas = () => api("/alicuotas-iva");
+
 /** Armá la parte de la URL con los filtros, dejando afuera los vacíos. */
 export const query = (filtros = {}) => {
   const p = new URLSearchParams();
@@ -56,6 +65,37 @@ export const reabrirFactura = (id) => api(`/facturas/${id}/reabrir`, { method: "
 export const enviarFacturas = (ids) =>
   api("/facturas/enviar", { method: "POST", body: { ids } });
 
+/**
+ * Cómo quedaría el asiento de esta factura. NO guarda nada: es la pantalla
+ * que se muestra antes de apretar "OK, facturar".
+ *
+ * Devuelve las líneas con código y nombre de cuenta, los dos totales y el
+ * número tentativo del comprobante (FV-000001 y el siguiente si no hay
+ * alícuota).
+ */
+export const previewAsiento = (datos) =>
+  api("/facturas/preview-asiento", { method: "POST", body: datos });
+
+/* --- Los botones del asiento (para las facturas cargadas antes del módulo) ---
+ *
+ * Las facturas nuevas ya traen su asiento al crearse. Estas son para las
+ * viejas, que se emitieron cuando todavía no había libro. Los tres son
+ * SEPARADOS a propósito: anular la factura no anula el asiento, porque son dos
+ * documentos distintos.
+ */
+
+/** Genera el asiento de una factura que no lo tiene. */
+export const generarAsientoFactura = (id) =>
+  api(`/facturas/${id}/asiento`, { method: "POST" });
+
+/** Reemplaza las líneas del asiento y lo vuelve a contabilizar. */
+export const modificarAsientoFactura = (id, detalle) =>
+  api(`/facturas/${id}/asiento`, { method: "PUT", body: { detalle } });
+
+/** Anula el asiento. La factura sigue como estaba. */
+export const anularAsientoFactura = (id) =>
+  api(`/facturas/${id}/asiento/anular`, { method: "POST" });
+
 /** El POST y el PUT esperan los mismos campos. */
 export const aPayload = (f) => ({
   cliente_id: Number(f.cliente_id),
@@ -69,4 +109,13 @@ export const aPayload = (f) => ({
   condicion_venta: f.condicion_venta,
   cae: f.cae ? f.cae.trim() : null,
   cae_vencimiento: f.cae_vencimiento || null,
+  // Para el asiento: qué cuenta de ingresos y cómo se desglosa el IVA.
+  // El neto y el IVA NO se mandan: los calcula el backend.
+  tipo_operacion: f.tipo_operacion || "SERVICIOS",
+  alicuota_iva_id: f.alicuota_iva_id ? Number(f.alicuota_iva_id) : null,
+  // Solo para las notas: la factura a la que corrigen. Va en `null` para las
+  // facturas normales, que no corrigen ninguna.
+  factura_relacionada_id: f.factura_relacionada_id
+    ? Number(f.factura_relacionada_id)
+    : null,
 });

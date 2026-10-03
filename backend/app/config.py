@@ -25,7 +25,19 @@ class Settings(BaseSettings):
 
     # API
     api_prefix: str = "/api"
-    cors_origins: str = "http://localhost:5173"
+    # Los orígenes vienen del .env (CORS_ORIGINS). Ahí están los cuatro que
+    # hacen falta: el dev server y el preview, cada uno en localhost y en
+    # 127.0.0.1. Falta uno y esa página queda en blanco con un error de CORS
+    # en la consola, sin mostrar ningún mensaje.
+    # 5173 es el dev server de Vite (con HMR) y 4173 el preview de `vite preview`
+    # (que sirve `dist`). Los dos hacen falta: si el preview no está permitido,
+    # el navegador lo manda a /login, el POST de login lo bloquea CORS y la
+    # pantalla queda solo con el color del fondo — sin mensaje de error, que es
+    # lo más confuso que puede pasar.
+    cors_origins: str = (
+        "http://localhost:5173,http://127.0.0.1:5173,"
+        "http://localhost:4173,http://127.0.0.1:4173"
+    )
 
     # Informes: encabezado de todos los listados en PDF y Excel
     nombre_estudio: str = "ESTUDIO INTEGRAL AM"
