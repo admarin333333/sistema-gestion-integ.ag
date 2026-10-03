@@ -118,6 +118,47 @@ def exportar_cuenta_corriente(
     )
 
 
+@router.get("/libro-iva-ventas")
+def libro_iva_ventas(
+    desde: date | None = Query(default=None),
+    hasta: date | None = Query(default=None),
+    incluir_anuladas: bool = Query(default=False),
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """
+    Libro de IVA Ventas: una línea por comprobante, en orden correlativo y por día.
+
+    Sale de `facturas`, no de los asientos: el libro registra los documentos
+    emitidos, Contabilizado o no. Una factura guardada sin asentar igual emitió
+    comprobante y su IVA hay que pagarlo.
+    """
+    return informes_service.libro_iva_ventas(
+        db, desde=desde, hasta=hasta, incluir_anuladas=incluir_anuladas
+    )
+
+
+@router.get("/libro-iva-ventas/export.xlsx")
+def exportar_libro_iva_ventas(
+    desde: date | None = Query(default=None),
+    hasta: date | None = Query(default=None),
+    incluir_anuladas: bool = Query(default=False),
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """El Libro de IVA Ventas en Excel."""
+    data = informes_service.libro_iva_ventas(
+        db, desde=desde, hasta=hasta, incluir_anuladas=incluir_anuladas
+    )
+    contenido = informes_service.libro_iva_ventas_excel(data)
+    nombre = f"libro_iva_ventas_{date.today().isoformat()}.xlsx"
+    return Response(
+        content=contenido,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+    )
+
+
 @router.get("/anticipos-pendientes")
 def anticipos_pendientes(
     cliente_id: int | None = Query(default=None),

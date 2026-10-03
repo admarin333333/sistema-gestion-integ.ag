@@ -37,6 +37,10 @@ const MENU = [
       // Cuenta corriente va PRIMERO: es el informe del día — cuánto debe cada
       // cliente y a quién llamar. Los otros son de cierre o de control.
       { label: "Cuenta corriente", to: "/informe-cuenta-corriente" },
+      // Libro de IVA: informe fiscal, no de gestión. Va después de la cuenta
+      // corriente porque esa es la consulta del día; el libro se arma una vez
+      // al mes, para el contador.
+      { label: "Libro de IVA ventas", to: "/libro-iva-ventas" },
       { label: "Por centro de costos", to: "/informe-centros" },
       { label: "De resultados", to: "/informe-resultados" },
       { label: "De claves fiscales", to: "/informe-claves-fiscales" },

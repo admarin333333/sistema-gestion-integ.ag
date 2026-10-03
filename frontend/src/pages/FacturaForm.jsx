@@ -51,6 +51,10 @@ const VACIO = {
   // Para el asiento:
   tipo_operacion: "SERVICIOS",
   alicuota_iva_id: "",
+  // Libro de IVA Ventas: los dos que van en columna propia. No suman al
+  // importe, son informativos del libro.
+  percepcion: "",
+  no_gravado: "",
   // Solo para las notas: la factura a la que corrigen.
   factura_relacionada_id: "",
 };
@@ -189,6 +193,8 @@ export default function FacturaForm() {
           cae_vencimiento: f.cae_vencimiento || "",
           tipo_operacion: f.tipo_operacion || "SERVICIOS",
           alicuota_iva_id: f.alicuota_iva_id ? String(f.alicuota_iva_id) : "",
+          percepcion: f.percepcion || "",
+          no_gravado: f.no_gravado || "",
           factura_relacionada_id: f.factura_relacionada_id
             ? String(f.factura_relacionada_id)
             : "",
@@ -462,6 +468,42 @@ export default function FacturaForm() {
                   </option>
                 ))}
               </select>
+            </label>
+
+            {/* Los dos campos del Libro de IVA Ventas. Opcionales, en 0 en una
+                venta normal. NO suman al `importe`: el total del comprobante es
+                el que ya está arriba. Si se sumaran, el neto del libro dejaría
+                de cuadrar con la factura. */}
+            <label className="campo">
+              <span>Percepción de IVA</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={datos.percepcion}
+                onChange={set("percepcion")}
+                placeholder="0,00"
+              />
+              <small className="nota">
+                IVA que te retiene el cliente. Va en su propia columna del Libro
+                de IVA Ventas.
+              </small>
+            </label>
+
+            <label className="campo">
+              <span>Conceptos no gravados</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={datos.no_gravado}
+                onChange={set("no_gravado")}
+                placeholder="0,00"
+              />
+              <small className="nota">
+                Parte del total que paga 0% o está exenta (exportaciones, por
+                ejemplo).
+              </small>
             </label>
           </div>
         </fieldset>

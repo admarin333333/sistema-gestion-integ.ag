@@ -94,6 +94,21 @@ class Factura(Base):
         Numeric(6, 2), nullable=True
     )
 
+    # --- Libro de IVA Ventas (ver `migrar_iva_ventas.py`) ---
+    #
+    # Los dos campos que el libro necesita como columna y que en `compras` ya
+    # existían pero en ventas no. En NULL = no aplica: una venta normal tiene
+    # ambos en 0, no en NULL.
+    #
+    # `percepcion`: el IVA que el cliente le RETIENE al contador (3% en
+    # honorarios de abogados, por ejemplo). Es plata que entra menos, y el
+    # Libro de IVA Ventas la muestra en su propia columna.
+    #
+    # `no_gravado`: la parte del total que paga 0% o está exenta (exportaciones,
+    # por ejemplo). Va aparte del neto porque también es ingreso sin IVA.
+    percepcion: Mapped[Decimal | None] = mapped_column(Numeric(16, 4), nullable=True)
+    no_gravado: Mapped[Decimal | None] = mapped_column(Numeric(16, 4), nullable=True)
+
     # ARCA: opcionales. Hoy se cargan a mano si se tienen.
     cae: Mapped[str | None] = mapped_column(String(20), nullable=True)
     cae_vencimiento: Mapped[date | None] = mapped_column(Date, nullable=True)

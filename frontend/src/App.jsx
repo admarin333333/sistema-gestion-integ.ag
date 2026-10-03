@@ -29,6 +29,7 @@ const InformeCentros = lazy(() => import("/src/pages/InformeCentros.jsx"));
 const InformeResultados = lazy(() => import("/src/pages/InformeResultados.jsx"));
 const InformeClavesFiscales = lazy(() => import("/src/pages/InformeClavesFiscales.jsx"));
 const InformeCuentaCorriente = lazy(() => import("/src/pages/InformeCuentaCorriente.jsx"));
+const LibroIVA = lazy(() => import("/src/pages/LibroIVA.jsx"));
 const BalanceRT54 = lazy(() => import("/src/pages/BalanceRT54.jsx"));
 const Vencimientos = lazy(() => import("/src/pages/Vencimientos.jsx"));
 const PlanCuentas = lazy(() => import("/src/pages/PlanCuentas.jsx"));
@@ -92,6 +93,7 @@ export default function App() {
         <Route path="informe-resultados" element={<InformeResultados />} />
         <Route path="informe-claves-fiscales" element={<InformeClavesFiscales />} />
 <Route path="informe-cuenta-corriente" element={<InformeCuentaCorriente />} />
+<Route path="libro-iva-ventas" element={<LibroIVA />} />
         <Route path="balance-rt54" element={<BalanceRT54 />} />
         <Route path="vencimientos" element={<Vencimientos />} />
         <Route path="plan-cuentas" element={<PlanCuentas />} />

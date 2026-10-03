@@ -413,6 +413,11 @@ def _desglosar_en_factura(db: Session, factura: Factura, datos) -> None:
     factura.alicuota_iva_aplicada = aplicada
     factura.neto = neto
     factura.iva = iva
+    # Percepción y no gravado son del Libro de IVA, no del desglose contable: se
+    # copian tal cual vinieron. El `getattr` con 0 es porque el preview (que solo
+    # proyecta el asiento y no guarda) no los trae.
+    factura.percepcion = getattr(datos, "percepcion", 0) or 0
+    factura.no_gravado = getattr(datos, "no_gravado", 0) or 0
 
 
 def _verificar_periodo(db: Session, fecha, que: str) -> None:

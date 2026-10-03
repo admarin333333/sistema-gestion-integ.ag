@@ -66,6 +66,18 @@ class FacturaBase(BaseModel):
     # nada contable.
     alicuota_iva_id: int | None = None
 
+    # --- Libro de IVA Ventas (ver `migrar_iva_ventas.py`) ---
+    #
+    # Los dos que el libro necesita como columna propia. El `importe` sigue
+    # siendo el total con IVA: `percepcion` y `no_gravado` son INFORMATIVOS y
+    # no cambian el total del comprobante, por eso van aparte. Si se sumaran al
+    # `importe`, el neto del libro dejaría de cuadrar con la factura.
+    #
+    # A diferencia del neto y el IVA, estos **sí se mandan**: son datos que el
+    # contador conoce y la base no puede deducirlos del importe.
+    percepcion: float = Field(default=0, ge=0, description="IVA retenido por el cliente")
+    no_gravado: float = Field(default=0, ge=0, description="Parte del total sin IVA")
+
     @field_validator("tipo_comprobante")
     @classmethod
     def _tipo(cls, valor: str) -> str:
@@ -197,6 +209,19 @@ class FacturaOut(BaseModel):
     iva: float | None = None
     alicuota_iva_id: int | None = None
     alicuota_iva_aplicada: float | None = None
+
+    # --- Libro de IVA Ventas ---
+    # **Opcionales a propósito.** Las facturas anteriores a la migración tienen
+    # NULL acá (la columna se agregó después): si se declararan `float = 0`, Pydantic
+    # rechazaría el NULL y el listado de facturas del cliente devolvería 500 sin
+    # explicación. El NULL además significa algo: "nunca se cargó", que no es lo
+    # mismo que "se cargó en cero".
+    #
+    # Sin esto no se podrían editar: al abrir una factura para corregirla, los
+    # dos campos del formulario saldrían vacíos y, si se guardara, se pondrían
+    # en 0 pisando lo que estaba cargado.
+    percepcion: float | None = None
+    no_gravado: float | None = None
 
     # El asiento que se generó a partir de esta factura, si hay. La pantalla
     # usa esto para mostrar los botones Generar / Modificar / Anular.

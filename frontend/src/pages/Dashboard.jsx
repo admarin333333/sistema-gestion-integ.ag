@@ -1,20 +1,11 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
-import { getKPIs, getAlertas, getProximasVencimientos } from "../api/dashboard.js";
+import { getKPIs, getAlertas, getProximasVencimientos, getResultadoPorPeriodo } from "../api/dashboard.js";
 import { exportarProveedores, exportarCompras, exportarCentros, exportarResultados } from "../api/informes.js";
 import Periodo from "../components/Periodo.jsx";
 import Variantes from "../components/Variantes.jsx";
+import GraficoResultado from "../components/GraficoResultado.jsx";
 import { pesos, fecha } from "../formato.js";
-
-const FASES = [
-  { n: 1, txt: "Login, roles y base de datos", ok: true },
-  { n: 2, txt: "Clientes: alta, modificación y baja", ok: true },
-  { n: 3, txt: "Facturas, recibos, anticipos y cuenta corriente", ok: true },
-  { n: 4, txt: "Dashboard con totales y alertas", ok: true },
-  { n: 5, txt: "PDF e impresión", ok: false },
-  { n: 6, txt: "Preparación ARCA", ok: false },
-  { n: 7, txt: "Vercel-ready", ok: false },
-];
 
 const CHIP_COLOR = {
   rojo: "rojo",
@@ -36,6 +27,11 @@ export default function Dashboard() {
   const [proximas, setProximas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
+  // El gráfico va aparte del error general: si el gráfico falla (por ejemplo que
+  // no haya ejercicio vigente) los KPIs y las alertas siguen sirviendo. Un solo
+  // `error` dejaría la pantalla en blanco por un chart que no cargó.
+  const [resultado, setResultado] = useState(null);
+  const [errorGrafico, setErrorGrafico] = useState("");
   const [filtros, setFiltros] = useState({ desde: "", hasta: "" });
 
   useEffect(() => {
@@ -58,6 +54,11 @@ export default function Dashboard() {
       }
     };
     cargar();
+    // El gráfico se pide aparte y a propósito no corta el resto: si falla, los
+    // KPIs, las alertas y los vencimientos ya están y se siguen viendo.
+    getResultadoPorPeriodo()
+      .then(setResultado)
+      .catch((e) => setErrorGrafico(e.message));
   }, []);
 
   // Mientras carga: el layout completo con placeholders — sin pantalla en
@@ -235,14 +236,13 @@ export default function Dashboard() {
         </div>
       )}
 
-      <h2>Estado del proyecto</h2>
-      <ul className="fases">
-        {FASES.map((f) => (
-          <li key={f.n} className={f.ok ? "ok" : "pendiente"}>
-            <b>Fase {f.n}</b> — {f.txt}
-          </li>
-        ))}
-      </ul>
+      {/* Ingresos y gastos mes a mes del ejercicio (en el lugar del antiguo
+          "Estado del proyecto", que era andamiaje de desarrollo). */}
+      <div style={{ marginTop: "2rem" }}>
+        <h2>📊 Ingresos y gastos por mes</h2>
+        {!cargando && errorGrafico && <p className="nota">{errorGrafico}</p>}
+        <GraficoResultado data={resultado} />
+      </div>
     </section>
   );
   }

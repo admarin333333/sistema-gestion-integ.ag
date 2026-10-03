@@ -892,6 +892,24 @@ Se limpiaron con `limpiar_duplicados_prueba.py`.
 | 7 | **Decisión tuya:** renumerar los id de cuenta y/o limpiar los 2 clientes de prueba que quedaron (n° 7 y n° 13). Los id **ya son autoincrementales**, los huecos vienen de registros borrados en los tests. *Cliente n°7 (Juan) tiene facturas/recibos asociados, por lo que el hueco persiste; el cliente n°13 (Distribuidora Norte SRL) es el cliente real del Balance RT54 y se mantiene.* | Cosmético |
 | 8 | ~~**Ejercicio contable**~~ ✅ **hecho 01/10/2026** (MEMORIA §4.28): en el Balance RT54 se elige el **año de inicio y el de cierre** y el **día/mes de cierre sale de la ficha del cliente** (se repite todos los años); el sistema arma el intervalo (01/08/2024 → 31/07/2025 si cierra 31/07). *Queda para más adelante que los otros informes (facturas, compras, resultados) filtren por ejercicio en vez de año calendario.* | Módulo contable |
 | 9 | ~~**Estado de cuenta — selector de cliente** (pedido 01/10/2026): hoy el cliente se elige de un `<select>` con todos los cargados. Hace falta **búsqueda por apellido y nombre o razón social** (reusar el endpoint de sugerencias, como en los formularios)~~ ✅ **Hecho 01/10/2026**: campo con desplegable y búsqueda **local** (todas las palabras deben coincidir en apellido/nombre o razón social + CUIT/DNI); elegir carga la cuenta, escribir de nuevo limpia la selección | ✅ terminada |
+
+## 7. Bugs / incidencias
+
+| # | Qué | Estado |
+|---|---|---|
+| 1 | `uvicorn --reload` **no recargaba** los cambios del backend (se quedaba sirviendo código viejo). Solución: matar el proceso del puerto 8010 y relanzarlo. Si tocás el backend y "no pasa nada", **reiniciá la API** | ✅ rodeado |
+| 2 | ~~Los tests (`test_*.py`) están en `C:\Users\admar\AppData\Local\Temp\opencode\`, fuera del proyecto~~ ✅ **Cerrado 02/10/2026**: están en `C:\proyecto-gestion-contable\tests\` (19 suites + `correr_todas.py` + `LEEME.md`) y las rutas al backend son relativas. | ✅ cerrado |
+| 3 | ~~4 suites desactualizadas~~ ✅ **Arregladas el 02/10/2026** (§4.30). Las **16 suites pasan**, dos vueltas seguidas | ✅ cerrado |
+| 4 | Los routers que arman el schema a mano con `**datos` necesitan `try/except ValidationError` + `datos_invalidos()`, si no devuelven **500 sin explicación** en vez de 422. Ya está en clientes y proveedores; **faltan los demás** (facturas, anticipos, recibos...). Compras ya no lo hace: usa el schema de Pydantic | 🟡 a revisar |
+| 5 | El **CUIT no se valida el dígito verificador**: se chequea que tenga 11 dígitos y prefijo válido, pero no que el dígito 11 sea el correcto. Un CUIT mal tipeado con 11 dígitos pasa. *Opcional agregarlo* | 🟢 opcional |
+| 6 | ~~Las compras no se podían cargar (500 siempre)~~ ✅ **Cerrado 02/10/2026** (§4.39): `Compra.proveedor_id` apuntaba a `clientes` cuando los proveedores viven en `proveedores`/`personas`, y la validación leía un `.tipo` inexistente | ✅ cerrado |
+| 7 | ~~El **informe de resultados** sacaba los gastos de la tabla `compras`, así que no cuadraba con el informe por centro de costos~~ ✅ **Cerrado 02/10/2026** (§4.40): los tres lados del estado de resultado salen de los asientos contabilizados, con la misma función que usa el informe de centros | ✅ cerrado |
+| 8 | ~~Siete suites borraban los asientos reales del estudio en cada corrida~~ ✅ **Cerrado 02/10/2026** (§4.42 + `AGENTE.md` §6 bis). Respaldo completo, huella digital que avisa, y `borrar_prueba.py`. Los recibos de prueba fugados (140) se borraron con OK del contador | ✅ cerrado |
+| 9 | ~~El **buscador de cuentas** del editor de asientos nunca funcionó (422)~~ ✅ **Cerrado 02/10/2026** (§4.43): `plan_cuentas` se registraba antes que `asientos` en `main.py`, y `/plan-cuentas/{cuenta_id}` se comía `/plan-cuentas/buscar`. **Ojo con el orden de `include_router`**: las rutas literales van antes que las de parámetro | ✅ cerrado |
+| 10 | El **desplegable del menú** se veía transparente (`var(--surface)` es blanco al 4%) y se veía el menú de abajo atravesado | ✅ cerrado 02/10/2026 (§4.44) |
+| 11 | Las **suites se contaminan entre ellas**: cada una mide sobre una base que la anterior dejó sucia. Se tapaba porque `test_ejercicio.py` borraba todos los asientos de todos. Arreglado en lo más grosero (cada una limpia lo suyo con `borrar_prueba`), pero **la solución de fondo es la base de pruebas separada**, que sigue pendiente | 🔴 pendiente |
+| 12 | Sacar el `max-height` de `.tabla-scroll` le quitó el scroll a **todas** las tablas de golpe, no solo a la de clientes | cerrado 02/10/2026 (§4.46) |
+| 13 | Los formularios de alta quedaban **en blanco**: un `clientes.find(...)` antes del `useState` de `clientes` ( *"Cannot access 'clientes' before initialization"* ) | cerrado 02/10/2026 (§4.46) |
 | 13 | ~~**Mover las pruebas adentro del proyecto**~~ ✅ **hecho 02/10/2026**: las 19 suites viven en `C:\proyecto-gestion-contable\tests\` con `LEEME.md` y `correr_todas.py` (`--solo <texto>` para filtrar). Además las rutas al backend se calculan desde el propio archivo, así que el proyecto se puede mover de carpeta. | ✅ terminada |
 | 12 | **Botón de WhatsApp** (en la ficha del cliente y en los comprobantes) | Para más adelante |
 | 11 | **Módulo de vencimientos — parte 3: enviar el mail** (pedido 01/10/2026): las grillas, la pantalla y los datos del propietario ya están (§4.29). Falta el **botón que manda el aviso**. Hay dos caminos: **(A)** el backend manda solo por SMTP (hace falta una cuenta de salida + **contraseña de aplicación** de Gmail: activar verificación en 2 pasos y generarla en el panel de Google; se cargaría en Configuración, nunca en el chat); **(B)** el sistema **arma el mail y lo abre** en el Outlook/Gmail del usuario (sin contraseñas, más simple). **Esperando tu decisión.** | Cierre del módulo |
@@ -1995,23 +2013,89 @@ siendo el detalle de un cliente, comprobante por comprobante).
   lee ese parámetro con `useSearchParams`, si no el contador llegaba desde la lista
   y tenía que volver a buscar el cliente a mano.
 
-## 7. Bugs / incidencias
+### 4.48 Gráfico de ingresos y egresos mes a mes (03/10/2026)
 
-| # | Qué | Estado |
-|---|---|---|
-| 1 | `uvicorn --reload` **no recargaba** los cambios del backend (se quedaba sirviendo código viejo). Solución: matar el proceso del puerto 8010 y relanzarlo. Si tocás el backend y "no pasa nada", **reiniciá la API** | ✅ rodeado |
-| 2 | ~~Los tests (`test_*.py`) están en `C:\Users\admar\AppData\Local\Temp\opencode\`, fuera del proyecto~~ ✅ **Cerrado 02/10/2026**: están en `C:\proyecto-gestion-contable\tests\` (19 suites + `correr_todas.py` + `LEEME.md`) y las rutas al backend son relativas. | ✅ cerrado |
-| 3 | ~~4 suites desactualizadas~~ ✅ **Arregladas el 02/10/2026** (§4.30). Las **16 suites pasan**, dos vueltas seguidas | ✅ cerrado |
-| 4 | Los routers que arman el schema a mano con `**datos` necesitan `try/except ValidationError` + `datos_invalidos()`, si no devuelven **500 sin explicación** en vez de 422. Ya está en clientes y proveedores; **faltan los demás** (facturas, anticipos, recibos...). Compras ya no lo hace: usa el schema de Pydantic | 🟡 a revisar |
-| 5 | El **CUIT no se valida el dígito verificador**: se chequea que tenga 11 dígitos y prefijo válido, pero no que el dígito 11 sea el correcto. Un CUIT mal tipeado con 11 dígitos pasa. *Opcional agregarlo* | 🟢 opcional |
-| 6 | ~~Las compras no se podían cargar (500 siempre)~~ ✅ **Cerrado 02/10/2026** (§4.39): `Compra.proveedor_id` apuntaba a `clientes` cuando los proveedores viven en `proveedores`/`personas`, y la validación leía un `.tipo` inexistente | ✅ cerrado |
-| 7 | ~~El **informe de resultados** sacaba los gastos de la tabla `compras`, así que no cuadraba con el informe por centro de costos~~ ✅ **Cerrado 02/10/2026** (§4.40): los tres lados del estado de resultado salen de los asientos contabilizados, con la misma función que usa el informe de centros | ✅ cerrado |
-| 8 | ~~Siete suites borraban los asientos reales del estudio en cada corrida~~ ✅ **Cerrado 02/10/2026** (§4.42 + `AGENTE.md` §6 bis). Respaldo completo, huella digital que avisa, y `borrar_prueba.py`. Los recibos de prueba fugados (140) se borraron con OK del contador | ✅ cerrado |
-| 9 | ~~El **buscador de cuentas** del editor de asientos nunca funcionó (422)~~ ✅ **Cerrado 02/10/2026** (§4.43): `plan_cuentas` se registraba antes que `asientos` en `main.py`, y `/plan-cuentas/{cuenta_id}` se comía `/plan-cuentas/buscar`. **Ojo con el orden de `include_router`**: las rutas literales van antes que las de parámetro | ✅ cerrado |
-| 10 | El **desplegable del menú** se veía transparente (`var(--surface)` es blanco al 4%) y se veía el menú de abajo atravesado | ✅ cerrado 02/10/2026 (§4.44) |
-| 11 | Las **suites se contaminan entre ellas**: cada una mide sobre una base que la anterior dejó sucia. Se tapaba porque `test_ejercicio.py` borraba todos los asientos de todos. Arreglado en lo más grosero (cada una limpia lo suyo con `borrar_prueba`), pero **la solución de fondo es la base de pruebas separada**, que sigue pendiente | 🔴 pendiente |
-| 12 | Sacar el `max-height` de `.tabla-scroll` le quitó el scroll a **todas** las tablas de golpe, no solo a la de clientes | cerrado 02/10/2026 (§4.46) |
-| 13 | Los formularios de alta quedaban **en blanco**: un `clientes.find(...)` antes del `useState` de `clientes` ( *"Cannot access 'clientes' before initialization"* ) | cerrado 02/10/2026 (§4.46) |
+En el dashboard, en el lugar del antiguo "Estado del proyecto" (que era andamiaje de desarrollo y no le hacía falta a nadie).
+
+- **Chart.js** (`npm install chart.js`), con **`import` selectivo**: se registran solo `BarController`, `BarElement`, `CategoryScale`, `LinearScale`, `Tooltip` y `Legend`. Con `chart.js/auto` se registraban **todos** los tipos de gráfico (líneas, tortas, radar, geográfico) y el bundle subía 210 KB; así baja a 154 KB. **No usar `chart.js/auto`** salvo que de verdad se dibuje otro tipo de gráfico.
+- **Los 12 meses DEL EJERCICIO** (septiembre → agosto), no los del año calendario: el contador compara septiembre con septiembre. Vienen de `periodo_service.listar()`, así que ya existían.
+- `resultado_por_periodo()` hace **UNA sola consulta** `GROUP BY cuenta + año + mes` para los 12 meses. Llamar a `saldos_rama` por mes serían 24 consultas para pintar un gráfico.
+- **Usa las TRES ramas (4, 5 y 6), no dos.** Los costos (rama 5) van al mismo cubo que los gastos: los dos son egresos, y en el gráfico son una sola barra. La etiqueta dice **"Egresos"**, no "Gastos".
+  - **Si se hubiera dejado afuera la rama 5, el neto del gráfico y el del informe de resultados no darían lo mismo** (el del informe es `ingresos − costos − gastos`). Con 45.000 de costo por venta: el gráfico daba 370.000 de neto y el informe 325.000. Es la contradicción que el proyecto prohíbe.
+- Los importes salen **de SQL**, nunca de sumar filas en el navegador (regla del proyecto). Verificado comparando el `neto` del gráfico contra el de `/informes/resultados`.
+- Si los 12 meses están en cero sale un mensaje (*"Todavía no hay ingresos ni gastos registrados"*), **no una caja vacía**: una rejilla en cero parece una pantalla rota y además Chart.js no escala bien un rango todo cero.
+- `chart.destroy()` en el `useEffect` de limpieza: sin eso se apila un gráfico sobre el anterior y el canvas queda borroso.
+- **La ruta del dashboard es `/`, NO `/dashboard`.** `/dashboard` no matchea ninguna ruta y el `<Outlet/>` queda vacío: pantalla en blanco sin error en consola. Es la causa de un falso "está roto".
+- Sin asientos **contabilizados** el gráfico no muestra nada: lee `asiento_detalle` de asientos contabilizados, no las facturas. Es la regla "guardar no es asentar".
+- **Tests**: no hay suite propia. La prueba fue crear asientos de prueba, **medir los píxeles del canvas** (contar los verdes de ingresos y los rojos de egresos: si hay miles, las barras están pintadas) y después borrar por id de asiento.
+
+### 4.49 Tests que dejan datos si se caen a mitad de camino (03/10/2026)
+
+Un script de prueba creó 3 asientos y **se cayó en la línea siguiente**, al imprimir: los 3 quedaron en la base. Se detectaron porque el borrado posterior dejó 3 asientos donde se esperaba 0.
+
+**No es un problema del script, es del orden**: si el script crea y después falla, no tiene cómo limpiar.
+
+**Cómo se hace**: `try/finally` con el borrado en el `finally`, o borrar por **id de asiento** y **verificar el contador al final**. Nunca `DELETE FROM tabla` sin `WHERE`. La huella de `correr_todas.py` no lo detecta, porque solo compara contra el respaldo que se tomó al empezar la corrida: si los datos se crean **después** del respaldo, no los ve.
+
+### 4.50 Libro de IVA Ventas (03/10/2026)
+
+Una línea por **comprobante emitido**, en orden correlativo **por día**, con el total de cada columna al pie. En Informes, después de la cuenta corriente.
+
+- **Sale de `facturas`, NO de los asientos** — al revés que todos los otros informes, y a propósito. El libro de IVA registra los **documentos emitidos**: una factura guardada y todavía sin contabilizar igual emitió comprobante y ese IVA hay que pagarlo. Si saliera del libro contable, escondería justo las facturas que faltan pagar.
+- **El signo lo da `tipo_comprobante`, no el importe.** Las tres familias (factura / NC / ND) se guardan con importes **positivos**: una nota de crédito suma hacia abajo, una de débito hacia arriba. Buscar el signo en el número contaría dos veces.
+- **La correlativa se reinicia cada día**, que es como la pide el libro. Por eso el "Nº" vuelve a 1 cada vez que cambia la fecha: se arma en dos pasos (SQL trae las filas ordenadas, el acumulado en Python reparte los números dentro de cada fecha).
+- Las **anuladas no entran** salvo que se pidan: el filtro va en el `WHERE`, no después de traerlas.
+- `Cliente.nombre_completo` es un **método de Python** (arma el nombre desde `persona`), no una columna: SQL no lo puede traer. Por eso la consulta pide el `cliente_id` y los nombres se resuelven después, en una sola consulta con `joinedload(persona)` (sin eso sería una consulta por línea).
+- `percepcion` y `no_gravado` se agregaron a `facturas` (`migrar_iva_ventas.py`, idempotente). **No suman al `importe`**: son columnas informativas. Si sumaran, el neto del libro dejaría de cuadrar con la factura.
+- La migración solo completa las facturas con `neto` en blanco (les pone 21%). Las que ya lo tienen no se tocan: si el contador lo cargó a mano, es intencional.
+- Redondeo: `neto = importe / (1 + alícuota)` con **2 decimales**, e `iva = importe - neto`. A 2, porque es lo que ya usa el resto del sistema (la factura 00000024 tiene 14876.03 / 3123.97 sobre 18000).
+
+**Tres bugs que salieron al probar:**
+
+1. Los campos nuevos se agregaron a la base y al modelo pero **no al schema de creación** (`FacturaBase`) ni al de salida (`FacturaOut`): el sistema los aceptaba y los tiraba. Y si no están en `FacturaOut`, al editar una factura los campos salen vacíos y al guardar se pisan en 0.
+2. Al declararlos `float = 0` (no opcionales), las facturas **anteriores a la migración** —que tienen `NULL` ahí— hacían que `GET /api/facturas?cliente_id=N` devolviera **500**. Son `float | None`: el `NULL` además significa algo distinto de cero ("nunca se cargó").
+3. `_desglosar_en_factura` los tiene que copiar **a mano** (`getattr(datos, "percepcion", 0) or 0`), porque el preview del asiento no los trae.
+
+### 4.51 El listado de clientes ahora filtra al escribir (03/10/2026)
+
+**Bug reportado por el contador**: escribió "dist" en el buscador de clientes y la tabla no cambió nada. Parecía que la búsqueda estaba rota.
+
+**No estaba rota: la búsqueda en el backend funciona perfecto** (probado: `dist`, `DIST`, `distr`, `ibuidora` y el CUIT con y sin guiones devuelven todos Distribuidora Norte). Lo que pasaba es que **`Clientes.jsx` solo buscaba al apretar "Buscar"** (o Enter). Se escribía el nombre y la lista seguía igual, que es justo lo que hace pensar que algo falló.
+
+**El arreglo**: `escribir()` + un `useEffect` con **300 ms de espera** sobre `filtros.q`. Se escribe y filtra.
+
+- Los 300 ms son para no ir a la base con cada tecla: "distribuidora" son 11 pedidos donde alcanza con uno.
+- Un `useRef` (`desdeElCampo`) distingue lo que escribió la persona de lo que saltó solo (cargar una variante guardada, el botón Limpiar): en esos casos la búsqueda la pide quien la pidió y el efecto haría una segunda al pedo.
+- El botón "Buscar" **se queda**: sirve para aplicar los filtros de período y fecha de una sola vez.
+- Ojo: **esto quedó distinto del resto**. Las otras pantallas ya filtraban al escribir (el buscador de cliente escribible, §4.46), y el listado de clientes era el único que no. Dos comportamientos distintos en el mismo programa.
+- Probado en el navegador: `dist` → 1 cliente, `PEREZ` sin tilde → Pérez, `tol` → 2, `20-26473675-8` → 1, `noexiste` → "No hay nadie que coincida".
+
+### 4.52 El lanzador del escritorio (`iniciar.bat`) (03/10/2026)
+
+Acceso directo en el escritorio ("Gestion Estudio Contable") que apunta a `iniciar.bat`. Doble clic y arranca todo.
+
+- **Un `.bat`, no un programa instalado**: no hay que instalar nada, no necesita internet y se copia a otra máquina tal cual. Si se rompe, se arregla el `.bat` y el ícono del escritorio sigue sirviendo.
+- Levanta el backend (uvicorn, 8010) y **la versión compilada** (`npm run preview`, 4173), y abre el navegador solo. Se usa el `preview` y no el `dev` porque sirve `dist`: carga más rápido. El `dev` (5173) es para probar cambios con recarga automática.
+- **Si el puerto ya está ocupado, no arranca una segunda copia**: si el usuario abre el acceso dos veces, se usa el que ya está corriendo.
+- **La ventana queda abierta** con un cartel de "presioná una tecla para cerrar". Es a propósito: si se cerrara sola, los servidores seguirían corriendo en segundo plano sin forma de saberlo ni de apagarlos. Al apretar una tecla se apagan los dos, buscándolos **por puerto** (`netstat` + `taskkill /PID /T`) y no por nombre de proceso.
+- **OJO**: sirve `dist`, o sea la versión **compilada**. Si se tocó código hay que recompilar con `build_frontend.bat` antes de volver a usar el ícono. Si no, se ven los cambios viejos y parece que el programa "no agarró" lo que se hizo.
+- **Bug del arranque**: con `cmd /c "cd /d "ruta" && ..."` Windows mezcla las comillas y el comando queda partido. El backend **no arrancaba nunca** y el ícono abría el navegador sin datos — seemed andando igual. Se arregla con el `/D` del `start`, que cambia de carpeta sin comillas anidadas. **Se detectó probando** (apagar todo y arrancar de cero), no leyendo el archivo: el `.bat` estaba bien escrito.
+- Falta un `/health` real para esperar: el endpoint es `/health`, **no** `/api/health`.
+
+### 4.53 Qué NO debe subirse a GitHub, y el acceso directo que se creó (03/10/2026)
+
+Antes del commit se revisó todo lo que estaba sin versionar, porque **`.gitignore` no cubría los respaldos** y se Columbaban 23 archivos `.sql` con volcados completos de la base.
+
+- **`.gitignore` ahora tiene `*.sql` y `backend/respaldos/`**, con el porqué escrito adentro. Los `.sql` son respaldos: CUITs, DNIs, nombres, teléfonos, emails, importes y hashes de contraseñas. Se generan solos en cada corrida de pruebas (`tests/` accumulates uno por vez), así que sin la regla se cuelan en cada commit.
+- **`backend/app/config.py` SÍ se versiona** y tiene `jwt_secret = "clave-temporal"` y `db_password = ""`. Vacíos no filtran nada en local, pero **`clave-temporal` con cualquiera que tenga el repo puede fabricar un token**. Si el repo llega a ser público, cambiarlo primero.
+- `.env` sí estaba cubierto desde el principio (y verificado: ignorado, nunca staged). Contiene la clave de MySQL, el secreto de JWT y la contraseña de Gmail.
+- El commit `8f5369a` lo hizo el contador a mano con `git add -A`, así que entraron también 38 scripts de diagnóstico. No es problema (son texto, sin datos), pero conviene saber que están.
+
+| 12 | Sacar el `max-height` de `.tabla-scroll` le quitó el scroll a **todas** las tablas de golpe, no solo a la de clientes | cerrado 03/10/2026 (§4.46) |
+| 13 | Los formularios de alta quedaban **en blanco**: un `clientes.find(...)` antes del `useState` de `clientes` ( *"Cannot access 'clientes' before initialization"* ) | cerrado 03/10/2026 (§4.46) |
+| 14 | El **listado de clientes no filtraba al escribir**: solo al apretar "Buscar". No era un bug del backend (la búsqueda funciona), sino de la pantalla. Se veía como búsqueda rota | cerrado 03/10/2026 (§4.51) |
+| 15 | El **lanzador del escritorio no arrancaba la base de datos** por comillas anidadas de Windows. Abría el navegador sin datos y parecía andando | cerrado 03/10/2026 (§4.52) |
+| 16 | Los campos del Libro de IVA (`percepcion`, `no_gravado`) se agregaron a la base y al modelo pero **no a los schemas**: el sistema los aceptaba y los tiraba. Y al declararlos `float = 0` rompía el listado de facturas con **500** (las viejas tienen `NULL`) | cerrado 03/10/2026 (§4.50) |
 
 ---
 

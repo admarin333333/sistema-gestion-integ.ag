@@ -674,6 +674,328 @@ def centros_de_costos(db: Session) -> dict:
     }
 
 
+def libro_iva_ventas(
+    db: Session,
+    desde: date = None,
+    hasta: date = None,
+    incluir_anuladas: bool = False,
+) -> dict:
+    """
+    LIBRO DE IVA VENTAS: una línea por comprobante emitido, en orden correlativo
+    y por día, con el total de cada columna al pie.
+
+    **Sale de `facturas`, no de los asientos.** Es lo contrario de los informes
+    financieros, y a propósito: el libro de IVA registra **documentos emitidos**,
+    no movimientos contables. Si una factura está guardada pero todavía no
+    contabilizada, igual se emitió el comprobante y el IVA hay que pagarlo. Un
+    libro que saliera del libro contable escondería las facturas sin asentar, que
+    son justo las que hay que pagar.
+
+    **El signo lo da el tipo de comprobante, no el importe.** Las tres familias
+    se guardan con importes positivos (`neto`, `iva` e `importe`):
+      - `factura_a/b/c`      suma
+      - `nota_debito_a/b/c`  suma (aumenta la deuda del cliente)
+      - `nota_credito_a/b/c` resta (devuelve IVA)
+
+    Por eso las notas no se detectan por el signo del número sino por
+    `tipo_comprobante`. Un `importe` negativo se contaría dos veces.
+
+    **La correlativa se reinicia cada día**, que es como la pide el libro: el
+    número de renglón es una consecutively *dentro del día*, no del período. Por
+    eso se arma en dos pasos: el `GROUP BY día` de SQL numera, y el acumulado en
+    Python reparte los números dentro de cada fecha.
+
+    Las facturas **anuladas no entran** salvo que se pida explícitamente: una
+    factura anulada no existe para AFIP y sumarla falsearía el IVA a pagar. Por
+    eso el filtro va en el `WHERE` de la consulta y no después.
+
+    Los totales de cada columna salen de SQL (un `SUM` por columna sobre las
+    mismas filas), no de sumar las líneas en el navegador: el número de la
+    pantalla y el del Excel tienen que ser el mismo.
+    """
+    cond = []
+    if desde is not None:
+        cond.append(Factura.fecha >= desde)
+    if hasta is not None:
+        cond.append(Factura.fecha <= hasta)
+    if not incluir_anuladas:
+        cond.append(Factura.estado != "anulada")
+
+    # Una fila por comprobante. El nombre del cliente **no** se pide en el SELECT:
+    # `Cliente.nombre_completo` es un método de Python (armado en la vista desde
+    # `personas`), no una columna, así que SQL no lo puede traer. Por eso la
+    # consulta trae solo el `cliente_id` y el nombre se resuelve después, en
+    # Python, sobre los clientes que realmente aparecen en el libro.
+    filas = (
+        db.query(
+            Factura.id,
+            Factura.cliente_id,
+            Factura.fecha,
+            Factura.tipo_comprobante,
+            Factura.punto_venta,
+            Factura.numero,
+            Factura.importe,
+            Factura.neto,
+            Factura.iva,
+            Factura.alicuota_iva_aplicada,
+            Factura.percepcion,
+            Factura.no_gravado,
+            Factura.estado,
+        )
+        .filter(*cond)
+        .order_by(Factura.fecha, Factura.punto_venta, Factura.numero, Factura.id)
+        .all()
+    )
+
+    # Los nombres de los clientes del libro, en UNA consulta por todos (si se
+    # pidiera uno por comprobante serían N consultas para pintar una tabla).
+    #
+    # `joinedload(persona)` evita la consulta extra por cliente: sin eso, cada
+    # `cliente.nombre_completo` dispararía un SELECT a `personas` y el informe
+    # haría una consulta por línea.
+    ids_clientes = {f[1] for f in filas if f[1]}
+    nombres: dict[int, str] = {}
+    if ids_clientes:
+        from sqlalchemy.orm import joinedload
+        for c in db.query(Cliente).options(joinedload(Cliente.persona)).filter(
+            Cliente.id.in_(ids_clientes)
+        ).all():
+            nombres[c.id] = c.nombre_completo
+
+    ORDEN_TIPO = {"factura_a": 0, "factura_b": 0, "factura_c": 0,
+                  "nota_debito_a": 1, "nota_debito_b": 1, "nota_debito_c": 1,
+                  "nota_credito_a": 2, "nota_credito_b": 2, "nota_credito_c": 2}
+    ES_CREDITO = ("nota_credito_a", "nota_credito_b", "nota_credito_c")
+
+    # La correlativa se numera por día: al cambiar `fecha` vuelve a 1. Y el signo
+    # es +1 salvo las notas de crédito.
+    items = []
+    dia_actual = None
+    correlativo = 0
+    for fila in filas:
+        (fid, cliente_id, fecha, tipo, pv, numero, importe, neto, iva, alic, perc,
+         nograv, estado) = fila
+
+        if fecha != dia_actual:
+            dia_actual = fecha
+            correlativo = 0
+        correlativo += 1
+
+        signo = -1 if tipo in ES_CREDITO else 1
+
+        def val(x):
+            return float(x) if x is not None else 0.0
+
+        items.append({
+            "correlativo": correlativo,
+            "fecha": fecha,
+            "tipo_comprobante": tipo,
+            "etiqueta_tipo": ETIQUETAS_TIPO.get(tipo, tipo),
+            "punto_venta": pv,
+            "numero": numero,
+            "numero_completo": f"{pv}-{numero}",
+            "cliente": nombres.get(cliente_id, "(sin cliente)"),
+            # Todos los importes salen con el signo de la línea, para que el
+            # `SUM` del pie sea directamente el IVA a pagar / a devolver.
+            "neto": signo * val(neto),
+            "alicuota": float(alic) if alic is not None else None,
+            "iva": signo * val(iva),
+            "percepcion": signo * val(perc),
+            "no_gravado": signo * val(nograv),
+            "total": signo * val(importe),
+            "estado": estado,
+        })
+
+    # Totales en el backend (regla del proyecto). Sin la fila de totales, el
+    # pie de la pantalla y la última fila del Excel darían números distintos.
+    def sumar(campo):
+        return sum(i[campo] for i in items)
+
+    # Subtotales por día: el contador los necesita para el resumen diario.
+    subtotales_dia = []
+    dia_actual = None
+    acumulado = {"neto": 0.0, "iva": 0.0, "percepcion": 0.0,
+                 "no_gravado": 0.0, "total": 0.0}
+    for i in items:
+        if i["fecha"] != dia_actual:
+            if dia_actual is not None:
+                subtotales_dia.append({"fecha": dia_actual, **acumulado})
+            dia_actual = i["fecha"]
+            acumulado = {k: 0.0 for k in acumulado}
+        for k in acumulado:
+            acumulado[k] += i[k]
+    if dia_actual is not None:
+        subtotales_dia.append({"fecha": dia_actual, **acumulado})
+
+    return {
+        "desde": desde.isoformat() if desde else None,
+        "hasta": hasta.isoformat() if hasta else None,
+        "incluir_anuladas": incluir_anuladas,
+        "items": items,
+        "subtotales_dia": subtotales_dia,
+        "totales": {
+            "neto": sumar("neto"),
+            "iva": sumar("iva"),
+            "percepcion": sumar("percepcion"),
+            "no_gravado": sumar("no_gravado"),
+            "total": sumar("total"),
+        },
+        "cantidad": len(items),
+    }
+
+
+def resultado_por_periodo(db: Session, ejercicio_id: int) -> dict:
+    """
+    Ingresos y egresos mes a mes, para los 12 meses DEL EJERCICIO.
+
+    Sale de los **libros** (`asiento_detalle` de asientos contabilizados), igual
+    que el informe de resultados: por eso el mes de este gráfico y el total de la
+    pantalla de resultados son el mismo número. Si uno saliera de las tablas de
+    facturas y el otro de los asientos, un mes cerraría con dos cifras distintas
+    y no se sabría cuál es la buena.
+
+        ingresos (rama 4) - egresos (costos 5 + gastos 6) = neto
+
+    Los egresos van en un solo cubo porque en el gráfico son una barra: separar
+    "costos" de "gastos" en dos series agrega una barra más para explicar menos
+    (los dos son plata que salió). Si alguna vez hace falta el detalle, sale del
+    informe por centro de costos.
+
+    Los períodos son los del ejercicio (septiembre a agosto), no los del año
+    calendario: el contador compara septiembre con septiembre.
+
+    **Una sola consulta para los 12 meses.** Se podría llamar a `saldos_rama` una
+    vez por mes, pero eso son 24 consultas para pintar un gráfico. Acá se agrupa
+    por cuenta y por mes en un `GROUP BY` y los 12 casilleros se arman acá. El
+    `GROUP BY` es lo que trae los números de la base; sumar cuentas dentro de un
+    mes es lo mismo que ya hace `saldos_rama`.
+    """
+    from app.models.periodo import Periodo
+
+    periodos = (
+        db.query(Periodo)
+        .filter(Periodo.id_ejercicio == ejercicio_id)
+        .order_by(Periodo.numero)
+        .all()
+    )
+    if not periodos:
+        return {
+            "ejercicio_id": ejercicio_id,
+            "items": [],
+            "total_ingresos": 0.0,
+            "total_gastos": 0.0,
+            "neto": 0.0,
+        }
+
+    # Las cuentas de las ramas del resultado, con su signo.
+    #
+    # **Las TRES ramas, no dos**: 4 (ingresos), 5 (costos) y 6 (gastos). Los
+    # costos se sown al mismo cubo que los gastos —los dos son DEUDORES y los dos
+    # son egresos— y por eso el pie del gráfico dice "egresos".
+    #
+    # Si acá se dejara afuera la rama 5, el "neto" de este gráfico sería
+    # `ingresos - gastos` mientras el del informe de resultados sería
+    # `ingresos - costos - gastos`: dos números distintos para la misma
+    # pregunta. Un contador que compara los dos ve que no cierran y deja de
+    # confiar en los dos.
+    #
+    # `_arbol_rama` devuelve el árbol del plan; de ahí salen las cuentas
+    # imputables (las que tienen deudora_acreadora).
+    #
+    # El valor NO es el signo de la cuenta sino para qué lado del gráfico va: los
+    # ingresos van a una barra y los egresos a la otra, pero dentro de cada barra
+    # el signo sale de la cuenta (más abajo).
+    cuentas: dict[int, str] = {}
+    DEUDORAS = {"5", "6"}  # ramas que van al cubo de egresos
+    for codigo_raiz in (RAIZ_INGRESOS, RAIZ_COSTOS, RAIZ_GASTOS):
+        _, grupos = _arbol_rama(db, codigo_raiz, "X")
+        for g in grupos:
+            for c in g["cuentas"]:
+                if c.deudora_acreadora:
+                    # La clave lleva la rama para que un mismo id no se pise, aunque
+                    # en la práctica las ramas no comparten cuentas.
+                    cuentas[c.id_cuenta] = (
+                        "egreso" if codigo_raiz in DEUDORAS else "ingreso"
+                    )
+
+    if not cuentas:
+        return {
+            "ejercicio_id": ejercicio_id,
+            "items": [
+                {"numero": p.numero, "nombre": p.nombre, "ingresos": 0.0, "gastos": 0.0}
+                for p in periodos
+            ],
+            "total_ingresos": 0.0,
+            "total_gastos": 0.0,
+            "neto": 0.0,
+        }
+
+    # Un solo GROUP BY: cuenta + mes, sobre TODO el ejercicio.
+    filas = (
+        db.query(
+            AsientoDetalle.id_cuenta,
+            func.year(Asiento.fecha),
+            func.month(Asiento.fecha),
+            func.sum(AsientoDetalle.debe),
+            func.sum(AsientoDetalle.haber),
+        )
+        .join(Asiento, Asiento.id_asiento == AsientoDetalle.id_asiento)
+        .filter(
+            Asiento.estado == "CONTABILIZADO",
+            AsientoDetalle.id_cuenta.in_(list(cuentas.keys())),
+        )
+        .group_by(
+            AsientoDetalle.id_cuenta,
+            func.year(Asiento.fecha),
+            func.month(Asiento.fecha),
+        )
+        .all()
+    )
+
+    # (año, mes) -> (ingresos, egresos). La clave es la fecha real, no el número de
+    # período: un período de un ejercicio atipico (poco probable acá) se
+    # empareja igual por fecha.
+    por_fecha: dict[tuple[int, int], tuple[Decimal, Decimal]] = {}
+    for id_cuenta, anio, mes, debe, haber in filas:
+        es_ingreso = cuentas.get(id_cuenta, "egreso") == "ingreso"
+        # El signo sale de la CUENTA, igual que en `saldos_rama`: los ingresos son
+        # ACREEDOROS (haber - debe) y los egresos DEUDORES (debe - haber).
+        saldo = (_dec(haber) - _dec(debe)) if es_ingreso else (_dec(debe) - _dec(haber))
+        ing, gas = por_fecha.get((anio, mes), (Decimal("0"), Decimal("0")))
+        if es_ingreso:
+            ing += saldo
+        else:
+            gas += saldo
+        por_fecha[(anio, mes)] = (ing, gas)
+
+    items = []
+    for p in periodos:
+        # El casillero toma el mes del período, no su número: el número es la
+        # posición en el ejercicio (1 = septiembre) y la fecha real es lo que
+        # distingue dos ejercicios con el mismo número.
+        ing, gas = por_fecha.get((p.fecha_inicio.year, p.fecha_inicio.month), (Decimal("0"), Decimal("0")))
+        items.append({
+            "numero": p.numero,
+            "nombre": p.nombre,
+            "cerrado": bool(p.cerrado),
+            "ingresos": float(ing),
+            # El nombre de la clave es `gastos` por compatibilidad, pero lo que
+            # trae son los EGRESOS: costos (rama 5) + gastos (rama 6). Es el
+            # mismo número que `total_egresos` del informe de resultados.
+            "gastos": float(gas),
+        })
+
+    total_ing = sum(i["ingresos"] for i in items)
+    total_gas = sum(i["gastos"] for i in items)
+    return {
+        "ejercicio_id": ejercicio_id,
+        "items": items,
+        "total_ingresos": total_ing,
+        "total_gastos": total_gas,
+        "neto": total_ing - total_gas,
+    }
+
+
 def informe_centros(
     db: Session,
     desde: date = None,
@@ -764,6 +1086,87 @@ def informe_resultados(
 
 
 # --- Excel exports ---
+
+def libro_iva_ventas_excel(data: dict) -> bytes:
+    """
+    El Libro de IVA Ventas en Excel, con la fila de TOTALES al final.
+
+    Las notas de crédito salen con importe negativo porque así es como va en el
+    libro: la columna muestra el número que se suma, y el pie ya está restado.
+    Ponerle un signo menos solo a la celda y dejar el total positivo obligaría a
+    que el contador lo restara a mano.
+    """
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment
+    from io import BytesIO
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Libro IVA Ventas"
+
+    ws.append([settings.nombre_estudio])
+    ws.cell(row=1, column=1).font = Font(bold=True, size=14)
+    ws.append(["LIBRO DE IVA VENTAS"])
+    ws.cell(row=2, column=1).font = Font(bold=True, size=12)
+    rango = "Todo el período"
+    if data.get("desde") or data.get("hasta"):
+        rango = f"{data.get('desde') or 'inicio'} a {data.get('hasta') or 'hoy'}"
+    ws.append([f"{rango} · {data['cantidad']} comprobante(s)"])
+    ws.append(["Orden correlativo por día. Las notas de crédito van en negativo."])
+    ws.append([])
+
+    headers = [
+        "Nº", "Fecha", "Tipo", "P. Venta", "Número", "Cliente",
+        "Neto", "Alícuota %", "IVA", "Percepción", "Conceptos no gravados", "Total",
+    ]
+    ws.append(headers)
+    for cell in ws[ws.max_row]:
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(horizontal="center")
+
+    for i in data["items"]:
+        ws.append([
+            i["correlativo"],
+            i["fecha"],
+            i["etiqueta_tipo"],
+            i["punto_venta"],
+            i["numero"],
+            i["cliente"],
+            i["neto"],
+            i["alicuota"],
+            i["iva"],
+            i["percepcion"] or 0,
+            i["no_gravado"] or 0,
+            i["total"],
+        ])
+
+    ws.append([])
+    t = data["totales"]
+    ws.append([
+        "", "", "", "", "", "TOTALES",
+        t["neto"], "", t["iva"], t["percepcion"], t["no_gravado"], t["total"],
+    ])
+    for cell in ws[ws.max_row]:
+        cell.font = Font(bold=True)
+
+    # Los importes como número, no como texto: el contador quiere sumar en la
+    # planilla y no reescribir las fórmulas.
+    for fila in ws.iter_rows(min_row=6, min_col=7, max_col=12):
+        for c in fila:
+            if isinstance(c.value, (int, float)):
+                c.number_format = "#,##0.00"
+
+    # La fecha como fecha. Sin esto openpyxl la escribe como fecha-hora y en la
+    # celda queda "10/07/2026 00:00".
+    for fila in ws.iter_rows(min_row=6, min_col=2, max_col=2):
+        for c in fila:
+            if c.value is not None:
+                c.number_format = "DD/MM/YYYY"
+
+    bio = BytesIO()
+    wb.save(bio)
+    return bio.getvalue()
+
 
 def cuenta_corriente_excel(data: dict) -> bytes:
     """Genera el Excel de la cuenta corriente de todos los clientes.

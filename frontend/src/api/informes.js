@@ -55,3 +55,11 @@ export const obtenerCuentaCorriente = (filtros = {}) =>
 
 export const exportarCuentaCorriente = (filtros = {}) =>
   descargar(`/informes/cuenta-corriente/export.xlsx${query(filtros)}`);
+
+/* Libro de IVA Ventas: una línea por comprobante emitido, correlativo por día.
+   Sale de las facturas, no de los asientos (el libro registra documentos). */
+export const obtenerLibroIVA = (filtros = {}) =>
+  api(`/informes/libro-iva-ventas${query(filtros)}`);
+
+export const exportarLibroIVA = (filtros = {}) =>
+  descargar(`/informes/libro-iva-ventas/export.xlsx${query(filtros)}`);
