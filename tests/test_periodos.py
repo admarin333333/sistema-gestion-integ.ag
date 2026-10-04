@@ -25,7 +25,23 @@ import urllib.request
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(RAIZ, "backend"))
 
-BASE = "http://127.0.0.1:8010"
+# La dirección de la API sale de `GC_BASE_URL` para poder correr estas pruebas
+# contra la base de PRUEBAS y no contra la del estudio. Si la variable no
+# está, usa 8010 como antes: no cambia cómo se corren.
+BASE = os.environ.get("GC_BASE_URL", "http://127.0.0.1:8010")
+
+# Esta suite habla con la base de DOS maneras: por HTTP (`BASE`) y por SQL directo
+# (`app.database`, para limpiar lo que dejó la corrida). Con solo `GC_BASE_URL` el
+# SQL se va a la base REAL y la limpieza no borra nada de la base de pruebas.
+#
+# `DB_NAME` tiene que estar puesta ANTES de que se importe `app.database` (lo hace
+# `limpiar()`, más abajo), porque ese módulo lee el entorno UNA sola vez al
+# importarse. Por eso este bloque va arriba del archivo, en el nivel del módulo,
+# y no adentro de la función que limpia.
+if "GC_BASE_URL" in os.environ:
+    os.environ.setdefault(
+        "DB_NAME", os.environ.get("GC_TEST_DB", "gestion_contable_test")
+    )
 resultado = []
 
 # Agosto de 2027: el período 12 del ejercicio 2026/2027. Se elige un mes que en
@@ -38,8 +54,13 @@ NUMERO_FACTURA = "99991"
 # inválido mezclaría dos errores y la prueba apuntaría a la línea equivocada.
 CODIGO_COMPROBANTE = "OP"
 
-# Septiembre 2026 (período 1) es el que el contador usa de verdad. La suite solo
-# lo LEE, nunca lo cierra: cerrarlo y fallar después dejaría el estudio trabado.
+# Septiembre 2026 (período 1) es el mes donde se prueba el cierre CON
+# movimientos dentro. La suite lo LEE y lo cierra sólo con `forzar`, en un
+# try/except: cerrarlo y fallar después dejaría el período trabado y toda suite
+# que asienta en septiembre empezaría a recibir 409.
+FECHA_PERIODO_1 = "2026-09-10"
+CONCEPTO_PERIODO_1 = "PRUEBA PERIODOS p1"
+NUMERO_FACTURA_P1 = "99992"
 
 
 def pedir(metodo, ruta, token=None, cuerpo=None):
@@ -83,6 +104,109 @@ def buscar_cuenta(token, codigo):
     return None
 
 
+def cliente_para_prueba(token):
+    """
+    Un cliente para cargar documentos, cualquiera sea el que haya.
+
+    En la base del estudio hay clientes del contador. En la de PRUEBAS puede no
+    haber ninguno. Si la lista viene vacía se crea uno con un CUIT de prueba
+    (fijo, para que las corridas siguientes lo reconozcan) y se devuelve su id.
+    """
+    _, cli = pedir("GET", "/api/clientes", token)
+    lista = cli if isinstance(cli, list) else (cli or {}).get("clientes") or []
+    if lista:
+        return lista[0]["id"]
+
+    st, d = pedir(
+        "POST",
+        "/api/clientes",
+        token,
+        {
+            "tipo_persona": "juridica",
+            "nombre": "PERIODO",
+            "apellido": "Prueba",
+            "cuit": "30712345678",
+            "condicion_iva": "responsable_inscripto",
+            "actividad_economica": "servicios",
+            "tipo_actividad": "autonomo",
+        },
+    )
+    return d["id"] if st in (200, 201) and isinstance(d, dict) else None
+
+
+def dejar_periodo_1_con_movimiento(token, ejercicio_id):
+    """
+    Deja al menos un documento en el período 1 (Septiembre 2026).
+
+    POR QUÉ HACE FALTA
+
+    La prueba de "cerrar un período con documentos pide confirmación" necesita un
+    período CON documentos. En la base del estudio el período 1 los tiene
+    (asientos de septiembre), pero en la base de PRUEBAS arranca vacía: se arma
+    con el plan de cuentas y los datos iniciales, sin movimientos.
+
+    Sin esto, la prueba del cierre del período 1 no tenía nada con qué trabajar, el
+    paso siguiente fallaba y —peor— el período quedaba CERRADO. A partir de ahí
+    toda suite que asienta en septiembre recibía "el período 1 está cerrado", y el
+    fallo apuntaba a la suite equivocada.
+
+    Por eso la suite genera su propio movimiento en vez de depender de que la base
+    venga con datos: así la prueba es la misma contra cualquier base.
+
+    Devuelve el `id_periodo` del período 1, o None si no se pudo.
+    """
+    _, lp = pedir("GET", f"/api/ejercicios/periodos/{ejercicio_id}", token)
+    periodos = lp["periodos"] if isinstance(lp, dict) else []
+    p1 = next((p for p in periodos if p["numero"] == 1), None)
+    if p1 is None:
+        return None
+
+    if p1["documentos"] + p1["asientos"] > 0:
+        return p1["id_periodo"]        # ya tiene movimientos
+
+    cliente_id = cliente_para_prueba(token)
+    if cliente_id is None:
+        return None
+
+    st, _ = pedir(
+        "POST",
+        "/api/facturas",
+        token,
+        {
+            "cliente_id": cliente_id,
+            "fecha": FECHA_PERIODO_1,
+            "tipo_comprobante": "factura_b",
+            "punto_venta": "1",
+            "numero": NUMERO_FACTURA_P1,
+            "condicion_venta": "contado",
+            "importe": 1000.00,
+            "concepto": CONCEPTO_PERIODO_1,
+        },
+    )
+    return p1["id_periodo"] if st == 201 else None
+
+
+def abrir_periodos(token, ejercicio_id):
+    """
+    Abre TODOS los períodos del ejercicio. Se llama al principio y al final.
+
+    Es la red de seguridad: si una prueba se cae a mitad y dejó un período
+    cerrado, la corrida siguiente arranca con la base trabada y los fallos
+    apuntan a suites que no tienen nada que ver. Con esta llamada el período
+    vuelve a abrirse solo.
+    """
+    _, lp = pedir("GET", f"/api/ejercicios/periodos/{ejercicio_id}", token)
+    for p in (lp.get("periodos") if isinstance(lp, dict) else []):
+        if not p["cerrado"]:
+            continue
+        pedir(
+            "POST",
+            f"/api/ejercicios/periodos/{p['id_periodo']}/estado",
+            token,
+            {"cerrado": False, "forzar": True},
+        )
+
+
 def limpiar(token):
     """Saca por SQL lo que dejó esta corrida o una anterior.
 
@@ -100,10 +224,24 @@ def limpiar(token):
     from app.database import engine
 
     with engine.begin() as c:
+        # `LIKE '%:p%'` y no `= :c`: el movimiento del período 1 usa el concepto
+        # "PRUEBA PERIODOS p1" y el comprobante interno que genera una factura
+        # arma "Factura B 0001-00099991 — PRUEBA PERIODOS", o sea el concepto
+        # puede estar AL PRINCIPIO o AL FINAL. Con `=` quedaban vivos y, como
+        # `asientos.id_comprobante` es ON DELETE RESTRICT, tampoco se podían
+        # borrar: el asiento de la factura de agosto sobrevivía para siempre y el
+        # período 12 nunca volvía a estar vacío.
+        #
+        # Sigue acotado a esta suite: el concepto es "PRUEBA PERIODOS" y los
+        # documentos del contador no lo tienen.
         facturas = c.execute(
-            text("SELECT id FROM facturas WHERE concepto = :c"), {"c": CONCEPTO}
+            text("SELECT id FROM facturas WHERE concepto LIKE :p"),
+            {"p": f"%{CONCEPTO}%"},
         ).fetchall()
         for (fid,) in facturas:
+            # Los ids del asiento se leen ANTES de borrar `asiento_origen`: es el
+            # que dice qué asiento es de esta factura. Al revés no queda nada que
+            # leer y el asiento sobrevive huérfano.
             origenes = c.execute(
                 text("SELECT id_asiento FROM asiento_origen WHERE id_factura = :i"),
                 {"i": fid},
@@ -125,9 +263,9 @@ def limpiar(token):
         asientos = c.execute(
             text(
                 "SELECT id_asiento FROM asientos "
-                "WHERE concepto = :c OR concepto LIKE :p"
+                "WHERE concepto LIKE :p"
             ),
-            {"c": CONCEPTO, "p": CONCEPTO + " %"},
+            {"p": f"%{CONCEPTO}%"},
         ).fetchall()
         for (aid,) in asientos:
             c.execute(
@@ -138,11 +276,35 @@ def limpiar(token):
             )
             c.execute(text("DELETE FROM asientos WHERE id_asiento = :a"), {"a": aid})
 
-        c.execute(
-            text("DELETE FROM comprobantes_internos WHERE concepto = :c"),
-            {"c": CONCEPTO},
-        )
-    return len(facturas) + len(asientos)
+        # Los comprobantes internos van AL FINAL, con los asientos ya borrados: el
+        # orden importa por la clave foránea (`asientos.id_comprobante` →
+        # `comprobantes_internos`, ON DELETE RESTRICT).
+        comps = c.execute(
+            text(
+                "SELECT id_comprobante FROM comprobantes_internos "
+                "WHERE concepto LIKE :p"
+            ),
+            {"p": f"%{CONCEPTO}%"},
+        ).fetchall()
+        for (cid,) in comps:
+            c.execute(
+                text("DELETE FROM asiento_origen WHERE id_asiento IN "
+                     "(SELECT id_asiento FROM asientos WHERE id_comprobante = :i)"),
+                {"i": cid},
+            )
+            c.execute(
+                text("DELETE FROM asiento_detalle WHERE id_asiento IN "
+                     "(SELECT id_asiento FROM asientos WHERE id_comprobante = :i)"),
+                {"i": cid},
+            )
+            c.execute(
+                text("DELETE FROM asientos WHERE id_comprobante = :i"), {"i": cid}
+            )
+            c.execute(
+                text("DELETE FROM comprobantes_internos WHERE id_comprobante = :i"),
+                {"i": cid},
+            )
+    return len(facturas) + len(asientos) + len(comps)
 
 
 # =====================================================================
@@ -161,15 +323,13 @@ periodos = lp["periodos"]
 # Limpieza de arranque: si una corrida anterior murió a mitad de camino dejó el
 # período 12 cerrado o una factura con el mismo número, esta corrida arrancaría
 # ya con la trava puesta y probaría cualquier cosa.
+#
+# El ORDEN importa: primero se abren los períodos, después se borran los
+# documentos. Al revés, el período queda cerrado y la limpieza por SQL tampoco lo
+# revierte —`limpiar()` no toca `periodos` a propósito, porque abrir un período es
+# una decisión del contador.
+abrir_periodos(token, ej["id_ejercicio"])
 limpiar(token)
-for p in periodos:
-    if p["cerrado"]:
-        pedir(
-            "POST",
-            f"/api/ejercicios/periodos/{p['id_periodo']}/estado",
-            token,
-            {"cerrado": False, "forzar": True},
-        )
 _, lp = pedir("GET", f"/api/ejercicios/periodos/{ej['id_ejercicio']}", token)
 periodos = lp["periodos"]
 por_numero = {p["numero"]: p for p in periodos}
@@ -264,6 +424,24 @@ chequear(
 
 p12 = por_numero[12]
 
+# Para poder cerrar un período SIN confirmar tiene que estar vacío.
+#
+# En la base del estudio, agosto 2027 está vacío y esta suite nunca se apoyó en
+# eso. En la base de pruebas NO lo está: las corridas anteriores dejan una
+# factura y un comprobante ahí, y entonces el cierre rebotaba con 409. La prueba
+# fallaba por un motivo que no tenía que ver con lo que probaba.
+#
+# Por eso se limpia acá, y no solo al final de la corrida: el período tiene que
+# estar vacío en el MOMENTO del cierre, que es lo que esta sección verifica.
+limpiar(token)
+_, lp = pedir("GET", f"/api/ejercicios/periodos/{ej['id_ejercicio']}", token)
+p12 = next(p for p in lp["periodos"] if p["numero"] == 12)
+chequear(
+    "El período 12 está vacío antes de cerrarlo (en cualquier base)",
+    p12["documentos"] + p12["asientos"] == 0,
+    str(p12),
+)
+
 st, d = pedir(
     "POST",
     f"/api/ejercicios/periodos/{p12['id_periodo']}/estado",
@@ -296,10 +474,10 @@ st, _ = pedir("GET", "/api/recibos", token)
 chequear("Con un período cerrado se siguen listando recibos", st == 200, str(st))
 
 # --- crear documentos en ese mes rebota ------------------------------
-_, cli = pedir("GET", "/api/clientes", token)
-lista_cli = cli if isinstance(cli, list) else (cli or {}).get("clientes") or []
 # Los clientes salen con `id` (no `id_cliente`): viene de la tabla clientes.
-cliente_id = lista_cli[0]["id"] if lista_cli else None
+# Si no hay ninguno se crea uno: en la base de pruebas puede no haber clientes,
+# porque `seed.py` carga el plan de cuentas y los datos de arranque, no clientes.
+cliente_id = cliente_para_prueba(token)
 
 cuerpo_factura = {
     "cliente_id": cliente_id,
@@ -363,10 +541,18 @@ chequear(
 # 4. CERRAR CON DOCUMENTOS DENTRO
 # =====================================================================
 
-# El período 1 tiene movimientos reales del estudio. Cerrarlo tiene que pedir
-# confirmación; si cerrara de una, el contador cerraría por error un mes entero.
-# NO se cierra nunca: solo se mira la respuesta.
-p1 = por_numero[1]
+# Para probar el cierre CON documentos, el período 1 tiene que tenerlos. En la
+# base del estudio los tiene de verdad; en la de pruebas no, así que la suite
+# genera el suyo. Ver `dejar_periodo_1_con_movimiento`.
+chequear(
+    "El período 1 arranca con movimientos para poder probar el cierre",
+    dejar_periodo_1_con_movimiento(token, ej["id_ejercicio"]) is not None,
+    "no se pudo dejar un documento en septiembre",
+)
+# `p1` se relee porque el dict de `por_numero` es de antes del movimiento: si no,
+# la prueba de abajo compararía contra el estado viejo y vería documentos=0.
+_, lp = pedir("GET", f"/api/ejercicios/periodos/{ej['id_ejercicio']}", token)
+p1 = next(p for p in lp["periodos"] if p["numero"] == 1)
 st, d = pedir(
     "POST",
     f"/api/ejercicios/periodos/{p1['id_periodo']}/estado",
@@ -486,6 +672,10 @@ chequear(
 # 7. ESTADO FINAL
 # =====================================================================
 
+# Primero se abren TODOS los períodos y después se limpia. Al revés, el
+# movimiento de septiembre puede quedar con el período cerrado y el borrado por
+# SQL tampoco lo revierte.
+abrir_periodos(token, ej["id_ejercicio"])
 limpiar(token)
 _, lp = pedir("GET", f"/api/ejercicios/periodos/{ej['id_ejercicio']}", token)
 chequear(

@@ -30,3 +30,25 @@ from app.models.ejercicio import Ejercicio
 from app.models.periodo import Periodo
 from app.models.proveedor import Proveedor
 from app.models.propietario import Propietario
+from app.models.cta_bancaria import Banco, CtaBariaCliente
+
+# `IndiceMoneda` faltaba en esta lista. El modelo existía y era correcto, pero
+# sin importarse acá nunca entraba en `Base.metadata`: el ORM no lo veía y
+# Alembic creía que la tabla `config_indices_moneda` (con sus 404 filas de
+# histórico de precios) no tenía modelo y quería crearla de cero.
+#
+# **Este import es obligatorio, no cosmético.** Sin él, un `--autogenerate`
+# proposingía crear una tabla vacía con el mismo nombre y la real quedaría
+# conflictuando.
+from app.models.indice import IndiceMoneda
+
+# Las cuatro tablas de configuración. Antes se consultaban con SQL a mano y no
+# tenían modelo, así que Alembic las veía como tablas sobrantes y proponía
+# borrarlas. Modelarlas las hace visibles: ahora las compara de verdad, y las
+# crea en una base nueva (que sin ellas no podría facturar).
+from app.models.config import (
+    ConfigAsiento,
+    ConfigComprobante,
+    ConfigCuentaFormaPago,
+    ConfigSistema,
+)

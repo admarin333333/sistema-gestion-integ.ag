@@ -26,6 +26,51 @@ from app.database import SessionLocal  # noqa: E402
 
 resultado = []
 
+# --- un cliente para colgar las facturas de prueba ---------------------
+#
+# Las facturas de prueba necesitan un `cliente_id` que exista. El script usaba
+# `1` fijo: en la base del estudio el cliente 1 está, así que andaba. En la base
+# de PRUEBAS no hay clientes (o no hay ninguno con ese id) y el INSERT moría con
+# "foreign key constraint fails (facturas.cliente_id -> clientes.id)".
+#
+# Se busca uno real. Si no hay ninguno, se crea: la prueba necesita una factura,
+# y `facturas.cliente_id` es NOT NULL con clave foránea.
+#
+# OJO: este cliente NO se borra al terminar. La huella mide "qué filas hay", y
+# dejar un cliente nuevo entre una toma y otra haría que la comparación avise
+# una pérdida que no es. Se limpia al principio de cada corrida, que es lo mismo
+# que hacen las demás suites.
+CLIENTE_ID = None
+
+
+def cliente_para_la_prueba(db):
+    """Devuelve un `cliente_id` que exista, creando uno si hace falta."""
+    fila = db.execute(text("SELECT id FROM clientes ORDER BY id LIMIT 1")).first()
+    if fila:
+        return fila[0]
+
+    # No hay clientes. Se crea el mínimo que pide el schema.
+    from sqlalchemy import inspect
+
+    cols = {c["name"] for c in inspect(db.get_bind()).get_columns("clientes")}
+    persona_cols = {c["name"] for c in inspect(db.get_bind()).get_columns("personas")}
+    db.execute(
+        text(
+            "INSERT INTO personas (tipo_persona, nombre, actividad_economica, "
+            "tipo_actividad, condicion_iva) VALUES "
+            "('juridica', 'HUELLA Prueba', 'servicios', 'autonomo', "
+            "'responsable_inscripto')"
+        )
+    )
+    persona_id = db.execute(text("SELECT LAST_INSERT_ID()")).scalar()
+    db.execute(
+        text("INSERT INTO clientes (persona_id, tipo) VALUES (:p, 'cliente')"),
+        {"p": persona_id},
+    )
+    nuevo = db.execute(text("SELECT LAST_INSERT_ID()")).scalar()
+    db.commit()
+    return nuevo
+
 
 def chequear(nombre, condicion, detalle=""):
     resultado.append((nombre, bool(condicion), detalle))
@@ -44,6 +89,8 @@ db.execute(
     text("DELETE FROM localidades WHERE nombre = 'PRUEBA HUELLA'")
 )
 db.commit()
+
+CLIENTE_ID = cliente_para_la_prueba(db)
 
 # --- 1) la huella AVISA cuando falta una fila -------------------------
 db.execute(
@@ -98,9 +145,10 @@ db.execute(
         "INSERT INTO facturas (cliente_id, fecha, tipo_comprobante, punto_venta, "
         "numero, importe, concepto, condicion_venta, estado, tipo_operacion, "
         "neto, iva, creado, actualizado) VALUES "
-        "(1, '2026-09-15', 'factura_b', '9900', '00000001', 1000, "
+        "(:cli, '2026-09-15', 'factura_b', '9900', '00000001', 1000, "
         "'PRUEBA HUELLA', 'contado', 'pendiente', 'B', 1000, 0, NOW(), NOW())"
-    )
+    ),
+    {"cli": CLIENTE_ID},
 )
 db.commit()
 antes_con_prueba = borrar_prueba.huella(db)
@@ -128,9 +176,10 @@ db.execute(
         "INSERT INTO facturas (cliente_id, fecha, tipo_comprobante, punto_venta, "
         "numero, importe, concepto, condicion_venta, estado, tipo_operacion, "
         "neto, iva, creado, actualizado) VALUES "
-        "(1, '2026-09-15', 'factura_b', '9900', '00000002', 1000, "
+        "(:cli, '2026-09-15', 'factura_b', '9900', '00000002', 1000, "
         "'Otra cosa', 'contado', 'pendiente', 'B', 1000, 0, NOW(), NOW())"
-    )
+    ),
+    {"cli": CLIENTE_ID},
 )
 db.commit()
 antes_pv = borrar_prueba.huella(db)

@@ -10,8 +10,18 @@ import openpyxl
 import warnings
 
 warnings.filterwarnings("ignore")
+# La dirección de la API sale de `GC_BASE_URL` para poder correr estas pruebas
+# contra la base de PRUEBAS y no contra la del estudio. Si la variable no
+# está, usa 8010 como antes: no cambia cómo se corren.
 
-BASE = "http://127.0.0.1:8010"
+BASE = os.environ.get("GC_BASE_URL", "http://127.0.0.1:8010")
+
+# La suite necesita el ejercicio RT54 número 1, que está en la base del estudio y
+# no en la de pruebas. Si no está, se avisa y se omite la suite en vez de
+# reventar con un `KeyError: 'cabecera'` que no dice nada.
+# Ver `datos_de_prueba.py`.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from datos_de_prueba import chequear_o_salir  # noqa: E402
 # El backend, calculado desde donde esta este archivo: asi el proyecto se
 # puede mover de carpeta sin romper los tests.
 _RUTA_BACKEND = os.path.normpath(
@@ -61,6 +71,8 @@ def check(nombre, cond, detalle=""):
 st, tok = req("POST", "/api/auth/login", {"usuario": "admin", "password": "admin123"})
 token = tok.get("access_token")
 check("login", st == 200 and token, str(st))
+
+chequear_o_salir("caratula", token, BASE)
 
 # Valores originales para restaurar al final
 st, original = req("GET", "/api/balance-rt54/ejercicios/1", token=token)

@@ -225,6 +225,16 @@ def main() -> None:
             db.add(CentroCosto(nombre=nombre, activo=True))
             print(f"  + centro      {nombre}")
 
+        # `db.flush()` antes de consultar, y NO es un detalle: la sesión está creada con
+        # `autoflush=False` (ver `app/database.py`; es a propósito, para que una
+        # lectura no escriba nada). Sin el flush, los centros que se agregaron dos
+        # líneas más arriba todavía NO están en la base, y el `centros[centro]` de
+        # abajo revienta con KeyError.
+        #
+        # Esto solo pasaba en una base NUEVA. En la del estudio los centros ya
+        # existían, así que el `if existe: continue` los salteaba y nunca se
+        # llegaba al lookup. Salió al crear la base de pruebas.
+        db.flush()
         centros = {
             c.nombre: c.id
             for c in db.query(CentroCosto).all()

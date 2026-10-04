@@ -6,3 +6,7 @@ pydantic[email]
 pydantic-settings
 PyJWT
 bcrypt
+# Migraciones de esquema. El proyecto las usa: `alembic upgrade head` arma la
+# base de pruebas desde cero (las 43 tablas). Sin esto, un `pip install` limpio
+# no deja la herramienta y las migraciones dejan de correr.
+alembic>=1.13

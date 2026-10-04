@@ -18,13 +18,59 @@ CARPETA = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, CARPETA)
 sys.path.insert(0, os.path.join(os.path.dirname(CARPETA), "backend"))
 
-BASE = "http://127.0.0.1:8010"
+# ------------------------------------------------------------------
+# A qué base se conectan las pruebas
+# ------------------------------------------------------------------
+#
+# Las pruebas hablan con la API de DOS maneras, y es lo que hace que la base de
+# pruebas sirva:
+#
+#   1. Por HTTP, a la API (el 90%). Acá importa `GC_BASE_URL`: 8010 es el
+#      estudio, 8011 es la base de pruebas.
+#   2. Por SQL directo, con `from app.database import SessionLocal`. Se usa para
+#      limpiar (la API no borra un asiento contabilizado: `asiento_origen` es
+#      ON DELETE RESTRICT), para la huella digital y para verificar cosas que la
+#      API no expone. Acá importa `DB_NAME`.
+#
+# Con solo `GC_BASE_URL` las pruebas quedaban PARTIDAS: la API en una base y el
+# SQL en otra. Lo que pasaba en la práctica es que una suite creaba un recibo por
+# HTTP en `gestion_contable_test` y después lo buscaba por SQL en
+# `gestion_contable`, donde no existía: `Rechazo("El recibo no existe")` y la
+# suite se caía. Una de cada tres.
+#
+# Por eso, si `GC_BASE_URL` está puesta, se supone `DB_NAME` también. Sin
+# `GC_BASE_URL` no se toca nada: es la forma de siempre (8010 y la base del
+# estudio), que es como se corrían las pruebas antes de esto.
+BASE = os.environ.get("GC_BASE_URL", "http://127.0.0.1:8010")
+NOMBRE_PRUEBA = os.environ.get("GC_TEST_DB", "gestion_contable_test")
+BASE_REAL = "gestion_contable"
+
+if "GC_BASE_URL" in os.environ:
+    if NOMBRE_PRUEBA == BASE_REAL:
+        raise SystemExit(
+            f"Me freno: apuntás las pruebas a la base REAL ({BASE_REAL}).\n"
+            "Las pruebas borran filas. Elegí otra con GC_TEST_DB."
+        )
+    # Va ANTES de cualquier import de `app.database`: ese módulo lee el entorno
+    # una sola vez, al importarse, y después el nombre llega tarde.
+    os.environ["DB_NAME"] = NOMBRE_PRUEBA
+else:
+    NOMBRE_PRUEBA = BASE_REAL
 
 # Los tres formatos de resumen que usan las suites:
 #   "28 OK / 0 fallos"  ·  "56/56 pruebas correctas"  ·  "RESULTADO: 60 OK, 0 fallos"
 RE_OK_FALLOS = re.compile(r"(\d+)\s+OK\s*/\s*(\d+)\s+fallos")
 RE_OK_FALLOS2 = re.compile(r"RESULTADO:\s*(\d+)\s+OK,\s*(\d+)\s+fallos")
 RE_TODO_BIEN = re.compile(r"(\d+)\s*/\s*\d+\s+pruebas (?:correctas|pasaron)")
+
+# Una suite que avisó que le faltan datos (`datos_de_prueba.py`) sale con código 0
+# y este aviso. NO es lo mismo que "no terminó bien": acá la suite decidió no
+# correr porque la base no tiene con qué, y dijo qué le falta.
+#
+# Antes, estas cuatro aparecían en la lista de "sin medir", que es la misma
+# columna donde caen las suites que se rompen por un bug. Mezclarlas hacía que
+# una omisión—a propósito— se leyera como un problema del programa.
+RE_OMITIDA = re.compile(r"SUITE OMITIDA: faltan datos de prueba")
 
 
 def backend_arriba() -> bool:
@@ -48,6 +94,12 @@ def correr(archivo: str) -> tuple[int, str]:
         errors="replace",
     )
     salida = proc.stdout + proc.stderr
+
+    # Omitida a propósito: se mide 0/0 y se marca aparte. Se chequea ANTES de
+    # buscar un resumen, porque una suite omitida no tiene ninguno.
+    if RE_OMITIDA.search(salida):
+        return 0, 0
+
     for linea in reversed(salida.split("\n")):
         # "28 OK / 0 fallos" o "RESULTADO: 60 OK, 0 fallos"
         m = RE_OK_FALLOS.search(linea) or RE_OK_FALLOS2.search(linea)
@@ -162,9 +214,16 @@ def main():
     total_ok = 0
     total_fallos = 0
     sin_medir = []
+    omitidas = []
 
     for nombre in suites:
         ok, fallos = correr(nombre)
+        if ok == 0 and fallos == 0:
+            # Podría ser una suite sin pruebas, así que se confirma leyendo la
+            # salida: si dice "SUITE OMITIDA", fue a propósito.
+            omitidas.append(nombre)
+            print(f"  --  {nombre:<30} omitida (faltan datos de prueba)")
+            continue
         if ok < 0:
             sin_medir.append(nombre)
             print(f"  ??  {nombre:<30} no terminó bien (revisar a mano)")
@@ -198,6 +257,20 @@ def main():
 
     if sin_medir:
         print(f"  {len(sin_medir)} suite(s) sin medir: {', '.join(sin_medir)}")
+
+    # Las omitidas van aparte de las sin medir. Una suite omitida avisó que le
+    # faltan datos y decidió no correr: no es un problema del programa, así que
+    # no vuelve rojo el resultado. Igual se listan, porque si nadie las mira
+    # después se olvidan.
+    if omitidas:
+        print()
+        print(f"  {len(omitidas)} suite(s) OMITIDAS por falta de datos de prueba:")
+        for nombre in omitidas:
+            print(f"     - {nombre}")
+        print("     No es un fallo del programa. Para ver el detalle de qué falta,")
+        print("     corré esa suite sola; dice exactamente qué le falta.")
+
+    print()
     print(f"  TOTAL: {total_ok} pruebas, {total_fallos} fallos")
 
     if total_fallos or sin_medir:

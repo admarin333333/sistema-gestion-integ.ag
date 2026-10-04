@@ -350,7 +350,27 @@ def main():
             id_por_codigo[r[0]] = r[1]
 
         # Nivel 1 primero (no tienen padre), y de ahí para abajo.
-        for nivel in range(1, 5):
+        #
+        # El último nivel sale de los DATOS, no de un número fijo. Estaba escrito
+        # `range(1, 5)` y eso descartaba en silencio toda cuenta de nivel 5 o
+        # más: el script terminaba "con éxito" cargando 180 de las 185 cuentas
+        # del Excel, sin decir nada. Cinco cuentas se perdían y la única forma de
+        # enterarse era comparar los totales a mano.
+        #
+        # Por eso, además, hay un control antes: si queda alguna cuenta fuera del
+        # rango, se frena y se las nombra. Perder datos en silencio es peor que
+        # frenar.
+        nivel_maximo = max(c["nivel"] for c in cuentas)
+        fuera = [c for c in cuentas if not 1 <= c["nivel"] <= nivel_maximo]
+        if fuera:
+            raise SystemExit(
+                "Hay cuentas con un nivel que no puedo insertar: "
+                + ", ".join(f"{c['codigo']} (nivel {c['nivel']})" for c in fuera)
+            )
+
+        print(f"  Cargando niveles 1 a {nivel_maximo}")
+
+        for nivel in range(1, nivel_maximo + 1):
             for c in [x for x in ordenadas if x["nivel"] == nivel]:
                 padre_id = None
                 if c["padre"]:

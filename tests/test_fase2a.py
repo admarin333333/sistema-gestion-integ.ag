@@ -1,11 +1,15 @@
 """Pruebas de la Fase 2A — Backend de clientes."""
 
+import os
 import json
 import urllib.error
 import urllib.parse
 import urllib.request
+# La dirección de la API sale de `GC_BASE_URL` para poder correr estas pruebas
+# contra la base de PRUEBAS y no contra la del estudio. Si la variable no
+# está, usa 8010 como antes: no cambia cómo se corren.
 
-BASE = "http://127.0.0.1:8010"
+BASE = os.environ.get("GC_BASE_URL", "http://127.0.0.1:8010")
 resultado = []
 
 

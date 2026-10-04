@@ -1,12 +1,16 @@
 """Pruebas de la Fase 3 — backend de facturas (CRUD, roles, Excel)."""
 
+import os
 import io
 import json
 import urllib.error
 import urllib.parse
 import urllib.request
+# La dirección de la API sale de `GC_BASE_URL` para poder correr estas pruebas
+# contra la base de PRUEBAS y no contra la del estudio. Si la variable no
+# está, usa 8010 como antes: no cambia cómo se corren.
 
-BASE = "http://127.0.0.1:8010"
+BASE = os.environ.get("GC_BASE_URL", "http://127.0.0.1:8010")
 resultado = []
 
 
@@ -319,6 +323,20 @@ import os as _os
 _sys.path.insert(0, _os.path.join(
     _os.path.dirname(_os.path.abspath(__file__)), "..", "backend"))
 from sqlalchemy import text as _text  # noqa: E402
+# Esta suite habla con la base de DOS maneras: por HTTP (`BASE`) y por SQL
+# directo (`app.database`, para limpiar lo que dejó la corrida). Con solo
+# `GC_BASE_URL` el SQL se va a la base REAL y la limpieza no borra nada de la base
+# de pruebas.
+#
+# `DB_NAME` tiene que estar puesta ANTES de que se importe `app.database`, porque
+# ese módulo lee el entorno UNA sola vez al importarse. Por eso este bloque va
+# arriba del archivo, en el nivel del módulo, y no adentro de la función que
+# limpia.
+if "GC_BASE_URL" in os.environ:
+    os.environ.setdefault(
+        "DB_NAME", os.environ.get("GC_TEST_DB", "gestion_contable_test")
+    )
+
 from app.database import SessionLocal as _SL  # noqa: E402
 import borrar_prueba  # noqa: E402
 

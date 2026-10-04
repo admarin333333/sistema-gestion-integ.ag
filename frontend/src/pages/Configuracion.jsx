@@ -7,6 +7,7 @@ import EjercicioConfig from "./EjercicioConfig.jsx";
 import PeriodosConfig from "./PeriodosConfig.jsx";
 import ConfigAsientos from "./ConfigAsientos.jsx";
 import Propietario from "./Propietario.jsx";
+import Bancos from "../components/Bancos.jsx";
 import { obtenerPropietario, guardarPropietario } from "../api/propietario.js";
 
 export default function Configuracion() {
@@ -31,6 +32,13 @@ export default function Configuracion() {
 
       <div style={{ marginTop: "3rem" }}>
         <Alicuotas />
+      </div>
+
+      {/* El catálogo de bancos va acá porque se llena SOLO, con los CBU que se
+          cargan en las fichas de los clientes. Lo que hay que hacer a mano es
+          ponerle el nombre a los que quedaron provisorios. */}
+      <div style={{ marginTop: "3rem" }}>
+        <Bancos />
       </div>
 
       <div style={{ marginTop: "3rem" }}>

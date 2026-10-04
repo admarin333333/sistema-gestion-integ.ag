@@ -1,13 +1,36 @@
 """
-Limpia los clientes duplicados que dejaron las corridas de prueba anteriores
-(a la que se rompió antes de arreglar las suites).
+AVISO: NO CORRAS ESTE SCRIPT. Borrar datos de un cliente real es posible.
 
-Son personas físicas/jurídicas de prueba creadas por `test_fase2a` que no
-tenían ni CUIT ni DNI, así que no se podían borrar desde la API (ahora el
-backend valida que existan los datos y devuelve 422). Solo borra los que
-NO tienen movimientos asociados.
+Está acá solo como histórico. Ver `LEEME.md` de esta carpeta.
 
-Uso:  python -X utf8 limpiar_duplicados_prueba.py
+POR QUÉ NO SE DEBE CORRER
+
+Dos motivos, ambos sobre datos tuyos:
+
+1. **El CUIT de abajo está mal escrito.** El script borra parte del historial de
+   clave fiscal del CUIT `20-26473674-2`. El CUIT real del cliente Juan Pérez es
+   `20-26473675-8` — se diferencian en el último dígito (2 contra 8).
+
+   Hoy no borra nada, porque no hay ninguna persona con ese CUIT. Pero si algún
+   día alguien "corrige" el dígito para que coincida, el script pasa a borrar
+   datos de un cliente real. Es el peor tipo de bug: invisible hasta que hace
+   daño.
+
+2. **El filtro de nombres incluye `'Distribuidora Norte SRL'`,** que es un
+   cliente real tuyo (id 11). Hoy no lo toca porque tiene CUIT cargado, así que
+   no entra en el criterio de "sin CUIT y sin DNI". Pero si esa persona queda
+   alguna vez sin CUIT, el script la borra sin preguntar.
+
+Lo que sí es cierto: solo borra clientes SIN movimientos asociados (facturas,
+recibos, anticipos, compras). Eso protege a los que tienen historia, pero no a
+los que no la tienen — que es justamente el caso de los clientes que uno no
+quiere perder sin darse cuenta.
+
+Si alguna vez hay que borrar duplicados de prueba, usar
+`backend/limpiar_clientes_prueba.py`, que busca por una lista de CUITs y DNI
+concretos de los tests, respalda antes y no toca a nadie más.
+
+Uso original:  python -X utf8 limpiar_duplicados_prueba.py
 """
 
 import os

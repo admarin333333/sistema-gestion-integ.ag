@@ -18,8 +18,24 @@ _RUTA_BACKEND = os.path.normpath(
 # La carpeta de los tests, para poder importar `borrar_prueba` (el helper que
 # sabe qué es dato de prueba y cuál no).
 _CARPETA_TESTS = os.path.dirname(os.path.abspath(__file__))
+# La dirección de la API sale de `GC_BASE_URL` para poder correr estas pruebas
+# contra la base de PRUEBAS y no contra la del estudio. Si la variable no
+# está, usa 8010 como antes: no cambia cómo se corren.
 
-BASE = "http://127.0.0.1:8010"
+BASE = os.environ.get("GC_BASE_URL", "http://127.0.0.1:8010")
+
+# Esta suite habla con la base de DOS maneras: por HTTP (`BASE`) y por SQL directo
+# (`app.database`, para limpiar y para medir saldos). Con solo `GC_BASE_URL` el SQL
+# se va a la base REAL: el borrado no toca nada de la base de pruebas y esta suite
+# falla sola.
+#
+# `DB_NAME` tiene que estar puesta ANTES de que se importe `app.database` (abajo),
+# porque ese módulo lee el entorno UNA sola vez al importarse.
+if "GC_BASE_URL" in os.environ:
+    os.environ.setdefault(
+        "DB_NAME", os.environ.get("GC_TEST_DB", "gestion_contable_test")
+    )
+
 ok = 0
 fallos = []
 creados = {"comprobantes": [], "asientos": []}
@@ -70,13 +86,6 @@ import borrar_prueba  # noqa: E402
 from sqlalchemy import text as _text  # noqa: E402
 from app.database import SessionLocal as _SL  # noqa: E402
 
-# Los conceptos que usa esta suite. Son palabras comunes ("Cobranza", "Pago
-# proveedor"), así que solas NO identifican un asiento de prueba: un contador
-# podría tener un asiento que se llame igual. Por eso la limpieza de arranque
-# además exige que el asiento NO tenga `asiento_origen`: todo asiento que nace
-# de una factura, un recibo o una compra lo tiene, y esos son los del contador.
-# Los asientos manuales (sin origen) son los que esta suite crea por su cuenta.
-# Antes la línea era `DELETE FROM asientos` a secas, que se llevaba los reales.
 _CONCEPTOS_MOTOR = (
     "Pago proveedor", "Otro pago", "Cobranza", "Pago de enero",
     "Compra de mercadería", "Prueba reglas", "Borrador que no debe contar",

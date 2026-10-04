@@ -1,4 +1,6 @@
 # Prueba de índices de moneda homogénea + solapa Moneda homogénea
+import os
+import sys
 import io
 import json
 import urllib.request
@@ -9,8 +11,19 @@ import openpyxl
 import warnings
 
 warnings.filterwarnings("ignore")
+# La dirección de la API sale de `GC_BASE_URL` para poder correr estas pruebas
+# contra la base de PRUEBAS y no contra la del estudio. Si la variable no
+# está, usa 8010 como antes: no cambia cómo se corren.
 
-BASE = "http://127.0.0.1:8010"
+BASE = os.environ.get("GC_BASE_URL", "http://127.0.0.1:8010")
+
+# Esta suite necesita los índices de moneda homogénea (los 404 valores del IPC de
+# AFIP). Están en la base del estudio, cargados a mano: no hay ningún archivo del
+# proyecto que los tenga y la API no los genera. Sin ellos, la prueba reventaba
+# con `IndexError: list index out of range` al pedir el primero de la lista.
+# Ver `datos_de_prueba.py`.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from datos_de_prueba import chequear_o_salir  # noqa: E402
 ok = 0
 fallos = []
 
@@ -61,6 +74,8 @@ def pesos(v):
 st, tok = req("POST", "/api/auth/login", {"usuario": "admin", "password": "admin123"})
 token = tok.get("access_token")
 check("login", st == 200 and token, str(st))
+
+chequear_o_salir("moneda", token, BASE)
 
 # ------------------------------------------------------------ índices -------
 st, indices = req("GET", "/api/indices-moneda", token=token)

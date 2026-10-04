@@ -7,8 +7,23 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+# La dirección de la API sale de `GC_BASE_URL` para poder correr estas pruebas
+# contra la base de PRUEBAS y no contra la del estudio. Si la variable no
+# está, usa 8010 como antes: no cambia cómo se corren.
 
-BASE = "http://127.0.0.1:8010"
+BASE = os.environ.get("GC_BASE_URL", "http://127.0.0.1:8010")
+
+# Esta suite habla con la base de DOS maneras: por HTTP (`BASE`) y por SQL directo
+# (`app.database`, en `_borrar_facturas_por_sql`). Con solo `GC_BASE_URL` el SQL se
+# va a la base REAL y el borrado por SQL no toca nada de la base de pruebas.
+#
+# `DB_NAME` tiene que estar puesta ANTES de que se importe `app.database`, porque
+# ese módulo lee el entorno UNA sola vez al importarse.
+if "GC_BASE_URL" in os.environ:
+    os.environ.setdefault(
+        "DB_NAME", os.environ.get("GC_TEST_DB", "gestion_contable_test")
+    )
+
 resultado = []
 
 # Para la limpieza por SQL hace falta importar la app del backend. La ruta es

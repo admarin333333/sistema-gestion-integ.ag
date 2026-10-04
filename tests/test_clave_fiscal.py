@@ -11,8 +11,11 @@ import sys
 _RUTA_BACKEND = os.path.normpath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "backend")
 )
+# La dirección de la API sale de `GC_BASE_URL` para poder correr estas pruebas
+# contra la base de PRUEBAS y no contra la del estudio. Si la variable no
+# está, usa 8010 como antes: no cambia cómo se corren.
 
-BASE = "http://127.0.0.1:8010"
+BASE = os.environ.get("GC_BASE_URL", "http://127.0.0.1:8010")
 ok = 0
 fallos = []
 
@@ -162,6 +165,20 @@ check("borrar el cliente lo elimina", req("GET", f"/api/clientes/{cid}", token=t
 import sys
 sys.path.insert(0, _RUTA_BACKEND)
 from sqlalchemy import text
+# Esta suite habla con la base de DOS maneras: por HTTP (`BASE`) y por SQL
+# directo (`app.database`, para limpiar lo que dejó la corrida). Con solo
+# `GC_BASE_URL` el SQL se va a la base REAL y la limpieza no borra nada de la base
+# de pruebas.
+#
+# `DB_NAME` tiene que estar puesta ANTES de que se importe `app.database`, porque
+# ese módulo lee el entorno UNA sola vez al importarse. Por eso este bloque va
+# arriba del archivo, en el nivel del módulo, y no adentro de la función que
+# limpia.
+if "GC_BASE_URL" in os.environ:
+    os.environ.setdefault(
+        "DB_NAME", os.environ.get("GC_TEST_DB", "gestion_contable_test")
+    )
+
 from app.database import engine
 with engine.connect() as conn:
     huerfanas = conn.execute(text(

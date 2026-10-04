@@ -16,12 +16,28 @@ Al final borra todo lo que creó (por SQL: los asientos con comprobante propio n
 se pueden borrar por la API).
 """
 
+import os
 import json
 import sys
 import urllib.error
 import urllib.request
+# La dirección de la API sale de `GC_BASE_URL` para poder correr estas pruebas
+# contra la base de PRUEBAS y no contra la del estudio. Si la variable no
+# está, usa 8010 como antes: no cambia cómo se corren.
 
-BASE = "http://127.0.0.1:8010"
+BASE = os.environ.get("GC_BASE_URL", "http://127.0.0.1:8010")
+
+# Esta suite habla con la base de DOS maneras: por HTTP (`BASE`) y por SQL directo
+# (`app.database`, en `limpiar`). Con solo `GC_BASE_URL` el SQL se va a la base
+# REAL y el borrado por SQL no toca nada de la base de pruebas.
+#
+# `DB_NAME` tiene que estar puesta ANTES de que se importe `app.database`, porque
+# ese módulo lee el entorno UNA sola vez al importarse.
+if "GC_BASE_URL" in os.environ:
+    os.environ.setdefault(
+        "DB_NAME", os.environ.get("GC_TEST_DB", "gestion_contable_test")
+    )
+
 resultado = []
 
 MARCA = "PRUEBA COMPRA ASIENTO"
@@ -113,9 +129,39 @@ tok = pedir("POST", "/api/auth/login",
 
 # --- datos de prueba ----------------------------------------------------
 codigo, proveedores = pedir("GET", "/api/proveedores", tok)
-if not proveedores:
-    raise SystemExit("no hay proveedores para probar")
-prov = proveedores[0]
+lista_prov = proveedores if isinstance(proveedores, list) else []
+
+# En la base del estudio hay proveedores cargados. En la de PRUEBAS puede no haber
+# ninguno: `seed.py` carga el plan de cuentas y los datos de arranque, no
+# proveedores. Antes la suite se cortaba con un `SystemExit` y no decía nada más;
+# ahora se crea uno y la prueba corre igual.
+CUIT_PROVEEDOR = "30-70999999-7"
+if not lista_prov:
+    codigo, nuevo = pedir(
+        "POST",
+        "/api/proveedores",
+        tok,
+        {
+            "tipo_persona": "juridica",
+            "nombre": "PROVEEDOR",
+            "cuit": CUIT_PROVEEDOR,
+            # El schema los pide: sin estos el POST vuelve 422 y el mensaje dice
+            # qué falta, pero no dice que el problema era que no había proveedor.
+            "actividad_economica": "servicios",
+            "tipo_actividad": "autonomo",
+            "condicion_iva": "responsable_inscripto",
+        },
+    )
+    chequear("se crea un proveedor si no hay", codigo in (200, 201), f"{codigo} {nuevo}")
+    if codigo == 409:      # ya existía de una corrida anterior
+        codigo, todos = pedir("GET", "/api/proveedores", tok)
+        lista_prov = todos if isinstance(todos, list) else []
+    elif isinstance(nuevo, dict):
+        lista_prov = [nuevo]
+
+if not lista_prov:
+    raise SystemExit("no hay proveedores para probar, ni se pudo crear uno")
+prov = lista_prov[0]
 
 codigo, alicuotas = pedir("GET", "/api/alicuotas-iva", tok)
 alicuota = next((a for a in alicuotas if float(a["porcentaje"]) == 21.0), None)

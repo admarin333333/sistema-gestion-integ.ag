@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, Integer, String
+from sqlalchemy import Boolean, Date, DateTime, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -38,8 +38,24 @@ class Ejercicio(Base):
         Boolean, nullable=False, default=False
     )
 
+    # OJO el doble default.
+    #
+    # `default=datetime.utcnow` lo pone Python: sirve cuando el INSERT lo hace
+    # el ORM.
+    #
+    # `server_default` lo pone MySQL: sirve cuando el INSERT lo hace SQL crudo,
+    # que es lo que hacen los scripts de arranque (`migrar_ejercicios.py`). Sin
+    # él, la columna queda NOT NULL sin default y cualquier INSERT que no la
+    # nombre explícitamente falla con "Field 'creado' doesn't have a default
+    # value".
+    #
+    # Los dos hacen falta. El `server_default` además es lo que ya tiene la base
+    # del estudio, así que una base nueva queda igual que esa.
     creado: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow
+        DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        server_default=text("CURRENT_TIMESTAMP"),
     )
     actualizado: Mapped[datetime | None] = mapped_column(
         DateTime, nullable=True

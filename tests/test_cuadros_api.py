@@ -1,9 +1,22 @@
 # Prueba de API: cuadros de composición de las notas (tanda 3)
+import os
+import sys
 import json
 import urllib.request
 import urllib.error
+# La dirección de la API sale de `GC_BASE_URL` para poder correr estas pruebas
+# contra la base de PRUEBAS y no contra la del estudio. Si la variable no
+# está, usa 8010 como antes: no cambia cómo se corren.
 
-BASE = "http://127.0.0.1:8010"
+BASE = os.environ.get("GC_BASE_URL", "http://127.0.0.1:8010")
+
+# Esta suite necesita el ejercicio RT54 número 1 CON SUS 88 NOTAS: los cuadros
+# (2.1, 2.3, etc.) salen de las notas, así que un ejercicio vacío no tiene nada
+# que mirar. Ese ejercicio está en la base del estudio y no en la de pruebas.
+# Si no está, se avisa y se omite la suite en vez de reventar con un
+# `KeyError: 'notas'`. Ver `datos_de_prueba.py`.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from datos_de_prueba import chequear_o_salir  # noqa: E402
 ok = 0
 fallos = []
 
@@ -35,6 +48,8 @@ def check(nombre, cond, detalle=""):
 st, tok = req("POST", "/api/auth/login", {"usuario": "admin", "password": "admin123"})
 token = tok.get("access_token")
 check("login", st == 200 and token, f"status {st}")
+
+chequear_o_salir("cuadros", token, BASE)
 
 # GET ejercicio 1 --------------------------------------------------------
 st, ej = req("GET", "/api/balance-rt54/ejercicios/1", token=token)

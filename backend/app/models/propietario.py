@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, Integer, String, Text
+from sqlalchemy import Boolean, Date, DateTime, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -38,8 +38,12 @@ class Propietario(Base):
     email_4: Mapped[str | None] = mapped_column(String(120), nullable=True)
 
     # --- avisos que se mandan ---
+    # `server_default` está porque la fila del propietario la crea
+    # `migrar_propietario.py` con SQL crudo, y sin el default del servidor MySQL
+    # rechaza el INSERT ("Field 'aviso_vencimientos' doesn't have a default
+    # value"). El `default=True` sigue haciendo falta para los INSERT del ORM.
     aviso_vencimientos: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True
+        Boolean, nullable=False, default=True, server_default=text("1")
     )
 
     observaciones: Mapped[str | None] = mapped_column(Text, nullable=True)

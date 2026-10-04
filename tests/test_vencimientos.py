@@ -1,9 +1,13 @@
 # Prueba del módulo de vencimientos impositivos
+import os
 import json
 import urllib.request
 import urllib.error
+# La dirección de la API sale de `GC_BASE_URL` para poder correr estas pruebas
+# contra la base de PRUEBAS y no contra la del estudio. Si la variable no
+# está, usa 8010 como antes: no cambia cómo se corren.
 
-BASE = "http://127.0.0.1:8010"
+BASE = os.environ.get("GC_BASE_URL", "http://127.0.0.1:8010")
 ok = 0
 fallos = []
 

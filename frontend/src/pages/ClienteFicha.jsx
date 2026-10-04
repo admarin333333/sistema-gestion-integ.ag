@@ -18,6 +18,7 @@ import {
   obtenerCuentaCorriente,
   exportarCuentaCorriente,
 } from "../api/cuentaCorriente.js";
+import CuentasBancarias from "../components/CuentasBancarias.jsx";
 import { NOMBRE_ESTUDIO, fecha, fechaHora, pesos, whatsappLink, formatearTelefono } from "../formato.js";
 
 const hoy = () => {
@@ -33,6 +34,11 @@ const PESTANAS = [
   { id: "facturas", label: "Facturas", fase: 3 },
   { id: "recibos", label: "Recibos", fase: 3 },
   { id: "cuenta", label: "Cuenta corriente" },
+  // Las cuentas bancarias van acá y no en "Datos" porque un cliente puede tener
+  // varias, y en Datos los campos son uno por dato: ahí no se pueden mostrar
+  // cinco CBU. Es su propia solapa, y se lee sola: el CBU completa el banco, la
+  // sucursal y el número de cuenta.
+  { id: "bancos", label: "Cuentas bancarias" },
   // El balance es de ESTE cliente. Es un módulo aparte (vive en su propia
   // pantalla, porque es largo) pero el acceso se pone acá: el contador que
   // está en la ficha tiene el cliente ya a la vista y es donde lo busca.
@@ -446,7 +452,14 @@ export default function ClienteFicha({ tipo = "cliente" }) {
         </div>
       )}
 
-      {pestana === "observaciones" && (
+      {pestana === "bancos" && (
+            <CuentasBancarias
+              clienteId={cliente?.id}
+              clienteNombre={cliente?.nombre_completo}
+            />
+          )}
+
+          {pestana === "observaciones" && (
         <Observaciones cliente={cliente} onGuardar={guardarObservaciones} guardando={guardando} />
       )}
 

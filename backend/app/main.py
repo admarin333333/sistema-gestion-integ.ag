@@ -1,10 +1,32 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.config import settings
+from app.config import ConfigError, settings
 from app.core.errors import Rechazo
+
+
+@asynccontextmanager
+async def chequear_secreto_al_arrancar(app):
+    """
+    No deja arrancar la API con un secreto del JWT que sirva de poco.
+
+    Va en el `lifespan` y no al importar `config` a propósito: así el error sale
+    **una vez, al prender la API**, con el mensaje completo, y no enterrado en el
+    medio de la cadena de imports de cualquier script (un `migrar_*.py`, un
+    `probar_algo.py`) donde el que lee el error no entiende qué lo causó.
+
+    Frena con tres cosas: que falte la variable, que sea la de ejemplo, o que sea
+    más corta de 32 caracteres. Ver `Settings.chequear_secreto`.
+
+    El `ConfigError` **no** se captura: se deja subir. Si el secreto está mal, no
+    hay sistema, y un programa a medio arrancar sería peor.
+    """
+    settings.chequear_secreto()
+    yield
 from app.routers import (
     alicuotas,
     asientos,
@@ -30,12 +52,15 @@ from app.routers import (
     recibos,
     servicios,
     sugerencias,
+    ctas_bancarias,
 )
 
 app = FastAPI(
     title="Sistema de gestión — Estudio contable",
     version="2.0.0",
     description="API REST: autenticación, roles y gestión de clientes.",
+    # Si el secreto del JWT no sirve, la API no arranca (ver la función de arriba).
+    lifespan=chequear_secreto_al_arrancar,
 )
 
 app.add_middleware(
@@ -77,6 +102,7 @@ app.include_router(config_asientos.router, prefix=settings.api_prefix)
 app.include_router(config_asientos.router_comp, prefix=settings.api_prefix)
 app.include_router(propietario.router, prefix=settings.api_prefix)
 app.include_router(ejercicios.router, prefix=settings.api_prefix)
+app.include_router(ctas_bancarias.router, prefix=settings.api_prefix)
 
 
 @app.exception_handler(Rechazo)

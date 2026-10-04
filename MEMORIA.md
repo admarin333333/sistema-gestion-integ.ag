@@ -893,6 +893,28 @@ Se limpiaron con `limpiar_duplicados_prueba.py`.
 | 8 | ~~**Ejercicio contable**~~ ✅ **hecho 01/10/2026** (MEMORIA §4.28): en el Balance RT54 se elige el **año de inicio y el de cierre** y el **día/mes de cierre sale de la ficha del cliente** (se repite todos los años); el sistema arma el intervalo (01/08/2024 → 31/07/2025 si cierra 31/07). *Queda para más adelante que los otros informes (facturas, compras, resultados) filtren por ejercicio en vez de año calendario.* | Módulo contable |
 | 9 | ~~**Estado de cuenta — selector de cliente** (pedido 01/10/2026): hoy el cliente se elige de un `<select>` con todos los cargados. Hace falta **búsqueda por apellido y nombre o razón social** (reusar el endpoint de sugerencias, como en los formularios)~~ ✅ **Hecho 01/10/2026**: campo con desplegable y búsqueda **local** (todas las palabras deben coincidir en apellido/nombre o razón social + CUIT/DNI); elegir carga la cuenta, escribir de nuevo limpia la selección | ✅ terminada |
 
+### 4.54 Cuentas bancarias de los clientes (03/10/2026)
+
+Solapa **"Cuentas bancarias"** en la ficha del cliente, después de "Cuenta corriente". Un cliente puede tener todas las cuentas que quiera. Dos tablas (``migrar_cuentas_bancarias.py``, idempotente).
+
+**Por qué dos tablas:** el CBU **ya trae el banco adentro** — los primeros 8 dígitos son el código del BCRA. Si el banco se guardara como texto libre, quedaría "Galicia", "GALICIA", "galicia" y el sistema no reconocería que son el mismo. Con `bancos.codigo` (8 dígitos) como clave primaria, nunca se duplica y además sirve para **verificar que el CBU sea del banco que dice**.
+
+**El catálogo arranca VACÍO a propósito:** los códigos de los ~90 bancos **no se inventan**. Se llenan solos con los CBU que se cargan (el banco se crea con un nombre provisorio tipo "Banco 28505909"), y el contador le pone el nombre una vez desde Configuración → Bancos.
+
+- **El CBU se valida por estructura, NO por dígito verificador.** Se validan los 22 dígitos, que los primeros 8 coincidan con el banco, y que la sucursal y la cuenta escritas sean las del CBU. El **digito verificador no se chequea a propósito** (`_digito_verificador_cbu`): escribir ese algoritmo de memoria es más riesgoso que no escribirlo, porque **rechazaría CBU que sí son válidos** y el contador no podría cargar la cuenta real de un cliente. Queda como hueco consciente, para agregarlo cuando se pueda confirmar contra un CBU conocido.
+- **CBU y CVU van en columnas separadas y nunca los dos a la vez.** El CBU es una cuenta de banco (tiene sucursal y cuenta); el CVU es la dirección de una billetera. Si se dejaran los dos, el contador no sabría cuál copiar.
+- **El CBU no puede estar en dos cuentas** (ni en dos clientes). El CBU identifica una cuenta, no una persona: si dos lo tienen, uno está mal, y para las conciliaciones sería un problema.
+- **No se borran, se dan de baja** (`activo`). Una cuenta puede estar usada en un recibo emitido; borrarla dejaría ese recibo apuntando a nada.
+- `sucursal` y `numero_cuenta` son **texto**, no número: en un CBU los ceros adelante son válidos ("0001") y como número desaparecen. El `cuit_titular` se guarda **con guiones**, como el resto del sistema (`personas.cuit`).
+- El **código del banco no se puede editar**: es la clave primaria y sale del CBU. Solo se escribe el nombre.
+- Pegar un CBU completa solo la sucursal (dígitos 9-12), la cuenta (13-21) y el banco (1-8).
+- El botón "Copiar" al portapapeles **no se pudo verificar**: el navegador de las pruebas está en modo invisible y `navigator.clipboard` no anda ahí. En la máquina del contador debería andar, pero queda sin probar.
+
+**Bug encontrado probando:** una cuenta con **solo alias** daba **500**, porque no hay código de banco y `bancos.codigo` es la clave primaria (no admite NULL). Se resolvió con `SIN_BANCO = "00000000"`, que no se ofrece en el selector (`listar_bancos` lo filtra).
+
+**Para conciliaciones bancarias (aún no está hecho):** si se corrige un CBU, el anterior se pierde. Cuando se implemente convendría que el CBU sea "nuevo + baja del viejo" en vez de una edición, para no perder el histórico.
+
+
 ## 7. Bugs / incidencias
 
 | # | Qué | Estado |
@@ -2096,6 +2118,7 @@ Antes del commit se revisó todo lo que estaba sin versionar, porque **`.gitigno
 | 14 | El **listado de clientes no filtraba al escribir**: solo al apretar "Buscar". No era un bug del backend (la búsqueda funciona), sino de la pantalla. Se veía como búsqueda rota | cerrado 03/10/2026 (§4.51) |
 | 15 | El **lanzador del escritorio no arrancaba la base de datos** por comillas anidadas de Windows. Abría el navegador sin datos y parecía andando | cerrado 03/10/2026 (§4.52) |
 | 16 | Los campos del Libro de IVA (`percepcion`, `no_gravado`) se agregaron a la base y al modelo pero **no a los schemas**: el sistema los aceptaba y los tiraba. Y al declararlos `float = 0` rompía el listado de facturas con **500** (las viejas tienen `NULL`) | cerrado 03/10/2026 (§4.50) |
+| 17 | Una cuenta bancaria con **solo alias** daba **500**: no hay código de banco y `bancos.codigo` es la clave primaria, que no admite NULL | cerrado 03/10/2026 (§4.54) |
 
 ---
 

@@ -29,7 +29,13 @@ def columnas(conn, tabla):
 
 
 def indices(conn, tabla):
-    return {r[0] for r in conn.execute(text(f"SHOW INDEX FROM {tabla}"))}
+    # `SHOW INDEX` devuelve: Tabla, Non_unique, Key_name, ...
+    # El nombre del índice es la TERCERA columna (índice 2). Con `r[0]` se
+    # leía el nombre de la TABLA, así que la lista era siempre {tabla} y la
+    # comprobación "el índice ya existe" nunca daba True: el script intentaba
+    # crear el índice en cada corrida y MySQL contestaba
+    # "Duplicate key name 'uq_origen_compra'".
+    return {r[2] for r in conn.execute(text(f"SHOW INDEX FROM {tabla}"))}
 
 
 def constraints(conn, tabla):

@@ -1,11 +1,12 @@
 """Listados de anticipos: encabezado ESTUDIO INTEGRAL AM, nombres de
 columnas y total abajo, tanto en Excel como en PDF. Tambien el de facturas."""
 import json
+import os
 import urllib.request
 import urllib.error
 from pathlib import Path
 
-BASE = "http://127.0.0.1:8010/api"
+BASE = os.environ.get("GC_BASE_URL", "http://127.0.0.1:8010") + "/api"
 TEMP = Path(r"C:\Users\admar\AppData\Local\Temp\opencode")
 
 resultado = []

@@ -1,20 +1,36 @@
 # Prueba del intervalo contable del balance: años + día/mes de cierre del cliente
+import os
 import json
 import urllib.request
 import urllib.error
 from datetime import date, timedelta
+# La dirección de la API sale de `GC_BASE_URL` para poder correr estas pruebas
+# contra la base de PRUEBAS y no contra la del estudio. Si la variable no
+# está, usa 8010 como antes: no cambia cómo se corren.
 
-BASE = "http://127.0.0.1:8010"
+BASE = os.environ.get("GC_BASE_URL", "http://127.0.0.1:8010")
 ok = 0
 fallos = []
 
 
 def req(metodo, ruta, datos=None, token=None):
+    """
+    Pide algo a la API. `datos` es el CUERPO, no un header.
+
+    OJO: el cuerpo va como argumento aparte de `urlopen`, no adentro del
+    `Request`. Si se pone en el `Request` sin `data=`, `urllib` manda la petición
+    como GET y el cuerpo se pierde. Por eso el POST del login funcionaba (usa
+    `datos` en la 2ª posición) pero el POST del cliente no: `candidato` quedaba
+    `None` y la suite se caía tres líneas más abajo.
+    """
     r = urllib.request.Request(BASE + ruta, method=metodo)
     r.add_header("Content-Type", "application/json")
     if token:
         r.add_header("Authorization", "Bearer " + token)
     cuerpo = json.dumps(datos).encode() if datos is not None else None
+    if metodo in ("POST", "PUT", "PATCH"):
+        r.data = cuerpo
+        cuerpo = None
     try:
         with urllib.request.urlopen(r, cuerpo, timeout=30) as resp:
             t = resp.read().decode()
@@ -45,12 +61,61 @@ check("login", st == 200 and token, str(st))
 st, clientes = req("GET", "/api/clientes", token=token)
 check("hay clientes", st == 200 and len(clientes) > 0, str(st))
 
-# Buscamos uno que acepte PUT (no RI sin alícuota)
+# Buscamos uno que acepte PUT.
+#
+# El PUT se rebota en un "responsable inscripto SIN alícuota" (ver la validación
+# del backend). O sea que sirve: cualquiera que NO sea RI, o un RI que TENGA
+# alícuota. El filtro de abajo está bien.
+#
+# En la base del estudio hay clientes que no son RI, así que siempre aparece uno.
+# En la de PRUEBAS no: `seed.py` carga el plan de cuentas y los datos de arranque,
+# no clientes. Los que hay son RI sin alícuota —justo los que el PUT rechaza— y
+# entonces `candidato` quedaba None y la suite se caía tres líneas más abajo con
+# `AttributeError: 'NoneType' object has no attribute 'get'`, que no dice nada
+# sobre la causa real. Por eso, si no hay ninguno, se crea uno abajo.
 candidato = None
 for c in clientes:
     if c.get("condicion_iva") != "responsable_inscripto" or c.get("alicuota_iva"):
         candidato = c
         break
+
+# Si no hay ningún cliente apto, se crea uno con un CUIT de prueba (fijo, para que
+# las corridas siguientes lo reconozcan). Se crea con `condicion_iva` de
+# monotributista, que NO es RI: así el PUT lo acepta y la prueba hace lo que
+# quiere hacer.
+CUIT_PRUEBA = "30-71111111-9"
+
+if candidato is None:
+    st, nuevo = req(
+        "POST",
+        "/api/clientes",
+        {
+            "tipo_persona": "juridica",
+            "nombre": "INTERVALO",
+            "apellido": "Prueba",
+            "cuit": CUIT_PRUEBA,
+            "condicion_iva": "monotributista",
+            "actividad_economica": "servicios",
+            "tipo_actividad": "autonomo",
+        },
+        token,
+    )
+    if st == 409:
+        # Ya existe de una corrida anterior. Se busca por CUIT: el mismo error
+        # que daba antes, pero ahora se recupera en vez de abortar la suite.
+        st2, todos = req("GET", "/api/clientes", token=token)
+        lista = todos if isinstance(todos, list) else []
+        encontrado = next((c for c in lista if c.get("cuit") == CUIT_PRUEBA), None)
+        nuevo, st = encontrado, st2 if encontrado else 409
+
+    check(
+        "se pudo tener un cliente apto para la prueba",
+        st in (200, 201) and isinstance(nuevo, dict),
+        f"{st} {str(nuevo)[:120]}",
+    )
+    if isinstance(nuevo, dict):
+        candidato = nuevo
+
 check("cliente apto para la prueba", candidato is not None, "ninguno")
 cli_id = candidato["id"] if candidato else None
 
